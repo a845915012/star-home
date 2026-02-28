@@ -1,0 +1,135 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.ruoyi.starhome.mapper.FurnitureApiCallMonitorMapper">
+
+    <resultMap type="com.ruoyi.starhome.domain.FurnitureApiCallMonitor" id="FurnitureApiCallMonitorResult">
+        <result property="id" column="id"/>
+        <result property="userId" column="user_id"/>
+        <result property="minuteCalls" column="minute_calls"/>
+        <result property="hourCalls" column="hour_calls"/>
+        <result property="lastCallTime" column="last_call_time"/>
+        <result property="isBlocked" column="is_blocked"/>
+        <result property="blockTime" column="block_time"/>
+        <result property="blockReason" column="block_reason"/>
+        <result property="unblockTime" column="unblock_time"/>
+        <result property="minuteWindowStart" column="minute_window_start"/>
+        <result property="hourWindowStart" column="hour_window_start"/>
+        <result property="createBy" column="create_by"/>
+        <result property="createTime" column="create_time"/>
+        <result property="updateBy" column="update_by"/>
+        <result property="updateTime" column="update_time"/>
+        <result property="remark" column="remark"/>
+    </resultMap>
+
+    <sql id="selectFurnitureApiCallMonitorVo">
+        select id,
+               user_id,
+               minute_calls,
+               hour_calls,
+               last_call_time,
+               is_blocked,
+               block_time,
+               block_reason,
+               unblock_time,
+               minute_window_start,
+               hour_window_start,
+               create_by,
+               create_time,
+               update_by,
+               update_time,
+               remark
+        from furniture_api_call_monitor
+    </sql>
+
+    <select id="selectFurnitureApiCallMonitorById" parameterType="Long" resultMap="FurnitureApiCallMonitorResult">
+        <include refid="selectFurnitureApiCallMonitorVo"/>
+        where id = #{id}
+    </select>
+
+    <select id="selectFurnitureApiCallMonitorByUserId" parameterType="Long" resultMap="FurnitureApiCallMonitorResult">
+        <include refid="selectFurnitureApiCallMonitorVo"/>
+        where user_id = #{userId}
+        limit 1
+    </select>
+
+    <select id="selectFurnitureApiCallMonitorList" parameterType="com.ruoyi.starhome.domain.FurnitureApiCallMonitor"
+            resultMap="FurnitureApiCallMonitorResult">
+        <include refid="selectFurnitureApiCallMonitorVo"/>
+        <where>
+            <if test="userId != null">and user_id = #{userId}</if>
+            <if test="isBlocked != null">and is_blocked = #{isBlocked}</if>
+        </where>
+        order by id desc
+    </select>
+
+    <insert id="insertFurnitureApiCallMonitor" parameterType="com.ruoyi.starhome.domain.FurnitureApiCallMonitor" useGeneratedKeys="true"
+            keyProperty="id">
+        insert into furniture_api_call_monitor
+        <trim prefix="(" suffix=")" suffixOverrides=",">
+            <if test="userId != null">user_id,</if>
+            <if test="minuteCalls != null">minute_calls,</if>
+            <if test="hourCalls != null">hour_calls,</if>
+            <if test="lastCallTime != null">last_call_time,</if>
+            <if test="isBlocked != null">is_blocked,</if>
+            <if test="blockTime != null">block_time,</if>
+            <if test="blockReason != null and blockReason != ''">block_reason,</if>
+            <if test="unblockTime != null">unblock_time,</if>
+            <if test="minuteWindowStart != null">minute_window_start,</if>
+            <if test="hourWindowStart != null">hour_window_start,</if>
+            <if test="createBy != null and createBy != ''">create_by,</if>
+            create_time,
+            <if test="remark != null and remark != ''">remark,</if>
+        </trim>
+        <trim prefix="values (" suffix=")" suffixOverrides=",">
+            <if test="userId != null">#{userId},</if>
+            <if test="minuteCalls != null">#{minuteCalls},</if>
+            <if test="hourCalls != null">#{hourCalls},</if>
+            <if test="lastCallTime != null">#{lastCallTime},</if>
+            <if test="isBlocked != null">#{isBlocked},</if>
+            <if test="blockTime != null">#{blockTime},</if>
+            <if test="blockReason != null and blockReason != ''">#{blockReason},</if>
+            <if test="unblockTime != null">#{unblockTime},</if>
+            <if test="minuteWindowStart != null">#{minuteWindowStart},</if>
+            <if test="hourWindowStart != null">#{hourWindowStart},</if>
+            <if test="createBy != null and createBy != ''">#{createBy},</if>
+            sysdate(),
+            <if test="remark != null and remark != ''">#{remark},</if>
+        </trim>
+    </insert>
+
+    <update id="updateFurnitureApiCallMonitor" parameterType="com.ruoyi.starhome.domain.FurnitureApiCallMonitor">
+        update furniture_api_call_monitor
+        <trim prefix="SET" suffixOverrides=",">
+            <if test="userId != null">user_id = #{userId},</if>
+            <if test="minuteCalls != null">minute_calls = #{minuteCalls},</if>
+            <if test="hourCalls != null">hour_calls = #{hourCalls},</if>
+            <if test="lastCallTime != null">last_call_time = #{lastCallTime},</if>
+            <if test="isBlocked != null">is_blocked = #{isBlocked},</if>
+            <if test="blockTime != null">block_time = #{blockTime},</if>
+            <if test="blockReason != null">block_reason = #{blockReason},</if>
+            <if test="unblockTime != null">unblock_time = #{unblockTime},</if>
+            <if test="minuteWindowStart != null">minute_window_start = #{minuteWindowStart},</if>
+            <if test="hourWindowStart != null">hour_window_start = #{hourWindowStart},</if>
+            <if test="updateBy != null and updateBy != ''">update_by = #{updateBy},</if>
+            update_time = sysdate(),
+            <if test="remark != null">remark = #{remark},</if>
+        </trim>
+        where id = #{id}
+    </update>
+
+    <delete id="deleteFurnitureApiCallMonitorById" parameterType="Long">
+        delete
+        from furniture_api_call_monitor
+        where id = #{id}
+    </delete>
+
+    <delete id="deleteFurnitureApiCallMonitorByIds" parameterType="Long">
+        delete from furniture_api_call_monitor where id in
+        <foreach item="id" collection="array" open="(" separator="," close=")">
+            #{id}
+        </foreach>
+    </delete>
+
+</mapper>
