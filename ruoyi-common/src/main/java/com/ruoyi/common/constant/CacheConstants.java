@@ -41,4 +41,14 @@ public class CacheConstants
      * 登录账户密码错误次数 redis key
      */
     public static final String PWD_ERR_CNT_KEY = "pwd_err_cnt:";
+
+    /**
+     * 单设备登录映射（username -> token）
+     */
+    public static final String LOGIN_SINGLE_DEVICE_KEY = "login_single_device:";
+
+    /**
+     * 被挤下线标记（token -> 1）
+     */
+    public static final String LOGIN_KICKED_KEY = "login_kicked:";
 }

@@ -8,7 +8,6 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 import com.alibaba.fastjson2.JSON;
-import com.ruoyi.common.annotation.RepeatSubmit;
 import com.ruoyi.common.constant.CacheConstants;
 import com.ruoyi.common.core.redis.RedisCache;
 import com.ruoyi.common.filter.RepeatedlyRequestWrapper;
@@ -18,8 +17,8 @@ import com.ruoyi.framework.interceptor.RepeatSubmitInterceptor;
 
 /**
  * 判断请求url和数据是否和上一次相同，
- * 如果和上次相同，则是重复提交表单。 有效时间为10秒内。
- * 
+ * 如果和上次相同，则是重复提交表单。
+ *
  * @author ruoyi
  */
 @Component
@@ -38,7 +37,7 @@ public class SameUrlDataInterceptor extends RepeatSubmitInterceptor
 
     @SuppressWarnings("unchecked")
     @Override
-    public boolean isRepeatSubmit(HttpServletRequest request, RepeatSubmit annotation)
+    public boolean isRepeatSubmit(HttpServletRequest request, int interval)
     {
         String nowParams = "";
         if (request instanceof RepeatedlyRequestWrapper)
@@ -72,7 +71,7 @@ public class SameUrlDataInterceptor extends RepeatSubmitInterceptor
             if (sessionMap.containsKey(url))
             {
                 Map<String, Object> preDataMap = (Map<String, Object>) sessionMap.get(url);
-                if (compareParams(nowDataMap, preDataMap) && compareTime(nowDataMap, preDataMap, annotation.interval()))
+                if (compareParams(nowDataMap, preDataMap) && compareTime(nowDataMap, preDataMap, interval))
                 {
                     return true;
                 }
@@ -80,7 +79,7 @@ public class SameUrlDataInterceptor extends RepeatSubmitInterceptor
         }
         Map<String, Object> cacheMap = new HashMap<String, Object>();
         cacheMap.put(url, nowDataMap);
-        redisCache.setCacheObject(cacheRepeatKey, cacheMap, annotation.interval(), TimeUnit.MILLISECONDS);
+        redisCache.setCacheObject(cacheRepeatKey, cacheMap, interval, TimeUnit.MILLISECONDS);
         return false;
     }
 

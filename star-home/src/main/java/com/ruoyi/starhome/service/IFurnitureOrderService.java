@@ -1,6 +1,7 @@
 package com.ruoyi.starhome.service;
 
 import com.ruoyi.starhome.domain.FurnitureOrderDO;
+import com.ruoyi.starhome.domain.dto.CreateOrderRequest;
 
 import java.util.List;
 
@@ -16,4 +17,6 @@ public interface IFurnitureOrderService {
     int deleteFurnitureOrderByIds(Long[] ids);
 
     int deleteFurnitureOrderById(Long id);
+
+    FurnitureOrderDO createOrder(CreateOrderRequest request);
 }

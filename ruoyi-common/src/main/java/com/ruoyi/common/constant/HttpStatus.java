@@ -91,4 +91,9 @@ public class HttpStatus
      * 系统警告消息
      */
     public static final int WARN = 601;
+
+    /**
+     * 账号在其他设备登录，被挤下线
+     */
+    public static final int KICKED_OFFLINE = 901;
 }

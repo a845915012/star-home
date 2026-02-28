@@ -70,6 +70,14 @@ public class TokenService
                 Claims claims = parseToken(token);
                 // 解析对应的权限以及用户信息
                 String uuid = (String) claims.get(Constants.LOGIN_USER_KEY);
+
+                // 被挤下线标记
+                String kickedKey = getKickedKey(uuid);
+                if (Boolean.TRUE.equals(redisCache.hasKey(kickedKey)))
+                {
+                    return null;
+                }
+
                 String userKey = getTokenKey(uuid);
                 LoginUser user = redisCache.getCacheObject(userKey);
                 return user;
@@ -101,7 +109,18 @@ public class TokenService
         if (StringUtils.isNotEmpty(token))
         {
             String userKey = getTokenKey(token);
+            LoginUser loginUser = redisCache.getCacheObject(userKey);
             redisCache.deleteObject(userKey);
+            redisCache.deleteObject(getKickedKey(token));
+            if (loginUser != null && StringUtils.isNotEmpty(loginUser.getUsername()))
+            {
+                String singleDeviceKey = getSingleDeviceKey(loginUser.getUsername());
+                Object currentToken = redisCache.getCacheObject(singleDeviceKey);
+                if (currentToken != null && token.equals(String.valueOf(currentToken)))
+                {
+                    redisCache.deleteObject(singleDeviceKey);
+                }
+            }
         }
     }
 
@@ -113,10 +132,16 @@ public class TokenService
      */
     public String createToken(LoginUser loginUser)
     {
+        // 单设备登录：新设备登录先强制下线旧设备
+        forceOfflineOldDevice(loginUser.getUsername());
+
         String token = IdUtils.fastUUID();
         loginUser.setToken(token);
         setUserAgent(loginUser);
         refreshToken(loginUser);
+
+        // 记录账号当前登录token
+        redisCache.setCacheObject(getSingleDeviceKey(loginUser.getUsername()), token, expireTime, TimeUnit.MINUTES);
 
         Map<String, Object> claims = new HashMap<>();
         claims.put(Constants.LOGIN_USER_KEY, token);
@@ -152,6 +177,12 @@ public class TokenService
         // 根据uuid将loginUser缓存
         String userKey = getTokenKey(loginUser.getToken());
         redisCache.setCacheObject(userKey, loginUser, expireTime, TimeUnit.MINUTES);
+
+        // 同步刷新单设备映射过期时间
+        if (StringUtils.isNotEmpty(loginUser.getUsername()))
+        {
+            redisCache.setCacheObject(getSingleDeviceKey(loginUser.getUsername()), loginUser.getToken(), expireTime, TimeUnit.MINUTES);
+        }
     }
 
     /**
@@ -228,5 +259,38 @@ public class TokenService
     private String getTokenKey(String uuid)
     {
         return CacheConstants.LOGIN_TOKEN_KEY + uuid;
+    }
+
+    private String getSingleDeviceKey(String username)
+    {
+        return CacheConstants.LOGIN_SINGLE_DEVICE_KEY + username;
+    }
+
+    private String getKickedKey(String token)
+    {
+        return CacheConstants.LOGIN_KICKED_KEY + token;
+    }
+
+    private void forceOfflineOldDevice(String username)
+    {
+        if (StringUtils.isEmpty(username))
+        {
+            return;
+        }
+        String singleDeviceKey = getSingleDeviceKey(username);
+        String oldToken = redisCache.getCacheObject(singleDeviceKey);
+        if (StringUtils.isNotEmpty(oldToken))
+        {
+            redisCache.deleteObject(getTokenKey(oldToken));
+            // 标记被挤下线，便于返回专用状态码
+            redisCache.setCacheObject(getKickedKey(oldToken), "1", expireTime, TimeUnit.MINUTES);
+            redisCache.deleteObject(singleDeviceKey);
+        }
+    }
+
+    public boolean isKickedOffline(HttpServletRequest request)
+    {
+        String token = getToken(request);
+        return StringUtils.isNotEmpty(token) && Boolean.TRUE.equals(redisCache.hasKey(getKickedKey(token)));
     }
 }

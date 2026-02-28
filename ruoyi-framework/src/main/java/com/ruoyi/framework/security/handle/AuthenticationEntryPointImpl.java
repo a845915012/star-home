@@ -4,6 +4,7 @@ import java.io.IOException;
 import java.io.Serializable;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.core.AuthenticationException;
 import org.springframework.security.web.AuthenticationEntryPoint;
 import org.springframework.stereotype.Component;
@@ -12,6 +13,7 @@ import com.ruoyi.common.constant.HttpStatus;
 import com.ruoyi.common.core.domain.AjaxResult;
 import com.ruoyi.common.utils.ServletUtils;
 import com.ruoyi.common.utils.StringUtils;
+import com.ruoyi.framework.web.service.TokenService;
 
 /**
  * 认证失败处理类 返回未授权
@@ -23,12 +25,22 @@ public class AuthenticationEntryPointImpl implements AuthenticationEntryPoint, S
 {
     private static final long serialVersionUID = -8970718410437077606L;
 
+    @Autowired
+    private TokenService tokenService;
+
     @Override
     public void commence(HttpServletRequest request, HttpServletResponse response, AuthenticationException e)
             throws IOException
     {
         int code = HttpStatus.UNAUTHORIZED;
         String msg = StringUtils.format("请求访问：{}，认证失败，无法访问系统资源", request.getRequestURI());
+
+        if (tokenService.isKickedOffline(request))
+        {
+            code = HttpStatus.KICKED_OFFLINE;
+            msg = "账号在其他设备登录，您已被强制下线";
+        }
+
         ServletUtils.renderString(response, JSON.toJSONString(AjaxResult.error(code, msg)));
     }
 }

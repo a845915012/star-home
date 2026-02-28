@@ -19,6 +19,10 @@ import com.ruoyi.common.utils.ServletUtils;
 @Component
 public abstract class RepeatSubmitInterceptor implements HandlerInterceptor
 {
+    private static final int DEFAULT_INTERVAL = 5000;
+
+    private static final String DEFAULT_MESSAGE = "不允许重复提交，请稍候再试";
+
     @Override
     public boolean preHandle(HttpServletRequest request, HttpServletResponse response, Object handler) throws Exception
     {
@@ -27,11 +31,15 @@ public abstract class RepeatSubmitInterceptor implements HandlerInterceptor
             HandlerMethod handlerMethod = (HandlerMethod) handler;
             Method method = handlerMethod.getMethod();
             RepeatSubmit annotation = method.getAnnotation(RepeatSubmit.class);
-            if (annotation != null)
+
+            boolean writeMethod = isWriteMethod(request);
+            if (annotation != null || writeMethod)
             {
-                if (this.isRepeatSubmit(request, annotation))
+                int interval = annotation != null ? annotation.interval() : DEFAULT_INTERVAL;
+                String message = annotation != null ? annotation.message() : DEFAULT_MESSAGE;
+                if (this.isRepeatSubmit(request, interval))
                 {
-                    AjaxResult ajaxResult = AjaxResult.error(annotation.message());
+                    AjaxResult ajaxResult = AjaxResult.error(message);
                     ServletUtils.renderString(response, JSON.toJSONString(ajaxResult));
                     return false;
                 }
@@ -44,13 +52,19 @@ public abstract class RepeatSubmitInterceptor implements HandlerInterceptor
         }
     }
 
+    private boolean isWriteMethod(HttpServletRequest request)
+    {
+        String method = request.getMethod();
+        return "POST".equalsIgnoreCase(method) || "PUT".equalsIgnoreCase(method) || "DELETE".equalsIgnoreCase(method);
+    }
+
     /**
      * 验证是否重复提交由子类实现具体的防重复提交的规则
      *
      * @param request 请求信息
-     * @param annotation 防重复注解参数
+     * @param interval 防重复间隔时间（毫秒）
      * @return 结果
-     * @throws Exception
+     * @throws Exception 异常
      */
-    public abstract boolean isRepeatSubmit(HttpServletRequest request, RepeatSubmit annotation);
+    public abstract boolean isRepeatSubmit(HttpServletRequest request, int interval);
 }

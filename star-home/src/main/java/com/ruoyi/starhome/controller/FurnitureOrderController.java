@@ -6,6 +6,7 @@ import com.ruoyi.common.core.domain.AjaxResult;
 import com.ruoyi.common.core.page.TableDataInfo;
 import com.ruoyi.common.enums.BusinessType;
 import com.ruoyi.starhome.domain.FurnitureOrderDO;
+import com.ruoyi.starhome.domain.dto.CreateOrderRequest;
 import com.ruoyi.starhome.service.IFurnitureOrderService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
@@ -53,6 +54,18 @@ public class FurnitureOrderController extends BaseController {
     @GetMapping("/{id}")
     public AjaxResult getInfo(@Parameter(description = "主键ID", required = true, example = "1") @PathVariable Long id) {
         return success(furnitureOrderService.selectFurnitureOrderById(id));
+    }
+
+    @Operation(summary = "下单", description = "前端传入用户ID和套餐ID，创建订单并自动开通权益（beginTime=当前时间）")
+    @io.swagger.v3.oas.annotations.parameters.RequestBody(
+            required = true,
+            description = "下单请求对象",
+            content = @Content(schema = @Schema(implementation = CreateOrderRequest.class), examples = @ExampleObject(value = "{\"userId\":1001,\"packageId\":2}"))
+    )
+    @Log(title = "订单", businessType = BusinessType.INSERT)
+    @PostMapping("/create")
+    public AjaxResult create(@RequestBody CreateOrderRequest request) {
+        return success(furnitureOrderService.createOrder(request));
     }
 
     @Operation(summary = "新增订单", description = "新增一条订单记录")
