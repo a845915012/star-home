@@ -12,7 +12,7 @@ public class TaskApiInvokeResponse implements Serializable {
     private static final long serialVersionUID = 1L;
 
     private Long userId;
-    private Integer apiNumber;
+    private String apiNumber;
     private BigDecimal callCost;
     private String apiResult;
     private Integer remainingCalls;

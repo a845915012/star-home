@@ -98,9 +98,7 @@ public class ApiCallMonitorFlushTask {
                 log.warn("调用监控持久化失败，准备重试，userId={}, attempt={}", userId, i, e);
             }
         }
-        if (lastEx != null) {
-            log.error("调用监控持久化最终失败，userId={}", userId, lastEx);
-        }
+        log.error("调用监控持久化最终失败，userId={}", userId, lastEx);
         return false;
     }
 
