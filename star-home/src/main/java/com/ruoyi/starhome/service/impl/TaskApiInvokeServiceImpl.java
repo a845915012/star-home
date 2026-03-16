@@ -18,16 +18,20 @@ import com.ruoyi.starhome.service.ApiCallMonitorCacheService;
 import com.ruoyi.starhome.service.ITaskApiInvokeService;
 import lombok.extern.slf4j.Slf4j;
 import okhttp3.*;
+import okio.BufferedSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
+import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
 import java.io.IOException;
 import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.Date;
 import java.util.List;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
 
 @Service
@@ -38,7 +42,9 @@ public class TaskApiInvokeServiceImpl implements ITaskApiInvokeService {
     private final OkHttpClient client = new OkHttpClient.Builder()
             .connectTimeout(5, TimeUnit.SECONDS)
             .readTimeout(60, TimeUnit.SECONDS)
-            .build();;
+            .build();
+
+    private final Map<Long, SseEmitter> emitterMap = new ConcurrentHashMap<>();
 
     @Autowired
     private FurnitureUserPackageRightsMapper furnitureUserPackageRightsMapper;
@@ -55,7 +61,7 @@ public class TaskApiInvokeServiceImpl implements ITaskApiInvokeService {
         if (request == null || request.getUserId() == null || request.getApiNumber() == null) {
             throw new ServiceException("userId和apiNumber不能为空");
         }
-
+        request.setUseSse(Boolean.TRUE);
 //        Date now = new Date();
 //        FurnitureUserPackageRightsDO rights = furnitureUserPackageRightsMapper.selectOne(
 //                new LambdaQueryWrapper<FurnitureUserPackageRightsDO>()
@@ -99,6 +105,28 @@ public class TaskApiInvokeServiceImpl implements ITaskApiInvokeService {
         return response;
     }
 
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public TaskApiInvokeResponse invokeTaskApiBlocking(TaskApiInvokeRequest request) {
+        if (request != null) {
+            request.setUseSse(false);
+        }
+        return invokeTaskApi(request);
+    }
+
+    @Override
+    public SseEmitter createStream(Long userId) {
+        if (userId == null) {
+            throw new ServiceException("userId不能为空");
+        }
+        SseEmitter emitter = new SseEmitter(0L);
+        emitterMap.put(userId, emitter);
+        emitter.onCompletion(() -> emitterMap.remove(userId));
+        emitter.onTimeout(() -> emitterMap.remove(userId));
+        emitter.onError(ex -> emitterMap.remove(userId));
+        return emitter;
+    }
+
     /**
      * 按 apiNumber 查询对应接口配置。
      * 说明：这里只做配置查询占位，后续真实AI调用业务由你补充。
@@ -135,7 +163,8 @@ public class TaskApiInvokeServiceImpl implements ITaskApiInvokeService {
             throw new ServiceException("上传图片至dify失败");
         }
         try {
-            result.setApiResult(runWorkflowWithMultipleFiles(request.getQuestion(),fileIds,user,apiPool.getApiUrl(),apiPool.getApiKey()));
+            boolean useSse = Boolean.TRUE.equals(request.getUseSse());
+            result.setApiResult(runWorkflowWithMultipleFiles(request.getQuestion(), fileIds, user, apiPool.getApiUrl(), apiPool.getApiKey(), useSse));
         } catch (IOException e) {
             log.error("获取工作流结果异常:{}",e.getMessage());
             throw new ServiceException("获取工作流结果异常");
@@ -144,47 +173,170 @@ public class TaskApiInvokeServiceImpl implements ITaskApiInvokeService {
     }
 
     /**
-     * 调用工作流，传入多个文件ID
+     * 调用工作流，传入多个文件ID（由 useSse 参数决定是否走SSE）。
+     * useSse = true  -> response_mode=streaming + 通过SseEmitter推送
+     * useSse = false -> response_mode=blocking  + 直接返回HTTP结果
      */
-    public String runWorkflowWithMultipleFiles(String question,List<String> fileIds, String user,String url,String apiKey) throws IOException {
-        // 构建 files 数组
+    public String runWorkflowWithMultipleFiles(String question, List<String> fileIds, String user, String url, String apiKey, boolean useSse) throws IOException {
+        Long userId = Long.valueOf(user);
+        SseEmitter emitter = emitterMap.get(userId);
+
+        if (useSse && emitter == null) {
+            throw new ServiceException("未找到userId对应的SSE连接: " + user + "，请先调用 /starhome/task/stream 建立连接");
+        }
+
+        ObjectNode root = buildChatMessagesPayload(question, fileIds, user, useSse ? "streaming" : "blocking");
+        Request request = buildChatMessagesRequest(url, apiKey, root);
+
+        if (!useSse) {
+            return executeBlocking(request);
+        }
+        return executeStreaming(request, emitter, userId);
+    }
+
+    private ObjectNode buildChatMessagesPayload(String question, List<String> fileIds, String user, String responseMode) {
         ObjectNode inputs = mapper.createObjectNode();
         ArrayNode filesArray = mapper.createArrayNode();
         for (String fileId : fileIds) {
             ObjectNode fileObj = mapper.createObjectNode();
-            fileObj.put("type", "image");            // 根据实际类型调整，如 "document", "audio" 等
+            fileObj.put("type", "image");
             fileObj.put("transfer_method", "local_file");
             fileObj.put("upload_file_id", fileId);
             filesArray.add(fileObj);
         }
-
-        // 将文件数组赋给自定义变量名（必须与开始节点中的变量名完全一致）
-        inputs.set("fileArray", filesArray);
+        // 必须与开始节点中的变量名一致
+        inputs.set("imageFiles", filesArray);
         inputs.put("question", question);
 
         ObjectNode root = mapper.createObjectNode();
-        root.set("inputs", inputs);                     // 放入 inputs 对象
+        root.set("inputs", inputs);
         root.put("user", user);
-        root.put("response_mode", "blocking");
+        root.put("query", question);
+        root.put("conversation_id", "");
+        root.put("response_mode", responseMode);
+        return root;
+    }
 
-        String jsonBody = mapper.writeValueAsString(root);
-
+    private Request buildChatMessagesRequest(String url, String apiKey, ObjectNode payload) throws IOException {
+        String jsonBody = mapper.writeValueAsString(payload);
         RequestBody body = RequestBody.create(
                 MediaType.parse("application/json; charset=utf-8"),
                 jsonBody
         );
-
-        Request request = new Request.Builder()
-                .url(url + "/workflows/run") // 根据应用类型调整
+        return new Request.Builder()
+                .url(url + "/chat-messages")
                 .header("Authorization", "Bearer " + apiKey)
                 .post(body)
                 .build();
+    }
 
+    private String executeBlocking(Request request) throws IOException {
         try (Response response = client.newCall(request).execute()) {
             if (!response.isSuccessful()) {
-                throw new IOException("工作流调用失败: " + response.code() + " - " + response.body().string());
+                ResponseBody errorBody = response.body();
+                throw new IOException("工作流调用失败: " + response.code() + " - " + (errorBody == null ? "" : errorBody.string()));
             }
-            return response.body().string();
+            ResponseBody responseBody = response.body();
+            if (responseBody == null) {
+                throw new IOException("工作流调用失败: 响应体为空");
+            }
+            String raw = responseBody.string();
+            return extractBlockingAnswer(raw);
+        }
+    }
+
+    private String extractBlockingAnswer(String rawJsonOrText) {
+        if (rawJsonOrText == null || rawJsonOrText.isBlank()) {
+            return "";
+        }
+        try {
+            JsonNode root = mapper.readTree(rawJsonOrText);
+            JsonNode answer = root.get("answer");
+            if (answer != null && !answer.isNull()) {
+                return answer.asText();
+            }
+            JsonNode dataAnswer = root.path("data").get("answer");
+            if (dataAnswer != null && !dataAnswer.isNull()) {
+                return dataAnswer.asText();
+            }
+            JsonNode message = root.get("message");
+            if (message != null && !message.isNull()) {
+                return message.asText();
+            }
+            return rawJsonOrText;
+        } catch (Exception ignore) {
+            return rawJsonOrText;
+        }
+    }
+
+    private String executeStreaming(Request request, SseEmitter emitter, Long userId) throws IOException {
+        try (Response response = client.newCall(request).execute()) {
+            if (!response.isSuccessful()) {
+                ResponseBody errorBody = response.body();
+                throw new IOException("工作流调用失败: " + response.code() + " - " + (errorBody == null ? "" : errorBody.string()));
+            }
+            ResponseBody responseBody = response.body();
+            if (responseBody == null) {
+                throw new IOException("工作流调用失败: 响应体为空");
+            }
+            String result = streamWorkflowResult(responseBody, emitter);
+            emitter.complete();
+            return result;
+        } finally {
+            emitterMap.remove(userId);
+        }
+    }
+
+    private String streamWorkflowResult(ResponseBody responseBody, SseEmitter emitter) throws IOException {
+        StringBuilder fullResult = new StringBuilder();
+        try (BufferedSource source = responseBody.source()) {
+            while (!source.exhausted()) {
+                String line = source.readUtf8Line();
+                if (line == null) {
+                    continue;
+                }
+                if (line.startsWith("data:")) {
+                    String data = line.substring(5).trim();
+                    if ("[DONE]".equals(data)) {
+                        ObjectNode doneEvent = mapper.createObjectNode();
+                        doneEvent.put("event", "done");
+                        doneEvent.put("data", "[DONE]");
+                        emitter.send(SseEmitter.event().data(doneEvent));
+                        emitter.complete();
+                        break;
+                    }
+                    String chunk = extractStreamingChunk(data);
+                    fullResult.append(chunk);
+                    ObjectNode messageEvent = mapper.createObjectNode();
+                    messageEvent.put("event", "message");
+                    messageEvent.put("data", chunk);
+                    emitter.send(SseEmitter.event().data(messageEvent));
+                }
+            }
+        } catch (Exception ex) {
+            emitter.completeWithError(ex);
+            throw ex instanceof IOException ? (IOException) ex : new IOException(ex.getMessage(), ex);
+        }
+        return fullResult.toString();
+    }
+
+    private String extractStreamingChunk(String dataLine) {
+        if (dataLine == null || dataLine.isBlank()) {
+            return "";
+        }
+        try {
+            JsonNode root = mapper.readTree(dataLine);
+            JsonNode answer = root.get("answer");
+            if (answer != null && !answer.isNull()) {
+                return answer.asText();
+            }
+            JsonNode delta = root.get("delta");
+            if (delta != null && !delta.isNull()) {
+                return delta.asText();
+            }
+            return dataLine;
+        } catch (Exception ignore) {
+            return dataLine;
         }
     }
 

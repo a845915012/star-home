@@ -32,13 +32,13 @@ public class FurnitureAiCallRecordsDO implements Serializable {
     private String aiMode;
 
     /** 输入Token */
-    private Integer tokenIn;
+    private BigDecimal tokenIn;
 
     /** 输出Token */
-    private Integer tokenOut;
+    private BigDecimal tokenOut;
 
     /** 总Token */
-    private Integer totalToken;
+    private BigDecimal totalToken;
 
     /** 费用 */
     private BigDecimal cost;

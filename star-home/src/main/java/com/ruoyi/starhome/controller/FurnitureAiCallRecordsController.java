@@ -6,6 +6,7 @@ import com.ruoyi.common.core.domain.AjaxResult;
 import com.ruoyi.common.core.page.TableDataInfo;
 import com.ruoyi.common.enums.BusinessType;
 import com.ruoyi.starhome.domain.FurnitureAiCallRecordsDO;
+import com.ruoyi.starhome.domain.dto.FurnitureAiCallRecordsPageResp;
 import com.ruoyi.starhome.service.IFurnitureAiCallRecordsService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
@@ -42,10 +43,8 @@ public class FurnitureAiCallRecordsController extends BaseController {
             @Parameter(name = "pageSize", description = "每页条数", example = "10")
     })
     @GetMapping("/list")
-    public TableDataInfo list(FurnitureAiCallRecordsDO furnitureAiCallRecords) {
-        startPage();
-        List<FurnitureAiCallRecordsDO> list = furnitureAiCallRecordsService.selectFurnitureAiCallRecordsList(furnitureAiCallRecords);
-        return getDataTable(list);
+    public AjaxResult list(FurnitureAiCallRecordsDO furnitureAiCallRecords) {
+        return success(furnitureAiCallRecordsService.selectFurnitureAiCallRecordsList(furnitureAiCallRecords));
     }
 
     @Operation(summary = "查询AI调用记录详情", description = "根据主键ID查询单条AI调用记录")

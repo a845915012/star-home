@@ -1,13 +1,14 @@
 package com.ruoyi.starhome.service;
 
 import com.ruoyi.starhome.domain.FurnitureAiCallRecordsDO;
+import com.ruoyi.starhome.domain.dto.FurnitureAiCallRecordsPageResp;
 
 import java.util.List;
 
 public interface IFurnitureAiCallRecordsService {
     FurnitureAiCallRecordsDO selectFurnitureAiCallRecordsById(Long id);
 
-    List<FurnitureAiCallRecordsDO> selectFurnitureAiCallRecordsList(FurnitureAiCallRecordsDO furnitureAiCallRecords);
+    FurnitureAiCallRecordsPageResp selectFurnitureAiCallRecordsList(FurnitureAiCallRecordsDO furnitureAiCallRecords);
 
     int insertFurnitureAiCallRecords(FurnitureAiCallRecordsDO furnitureAiCallRecords);
 
