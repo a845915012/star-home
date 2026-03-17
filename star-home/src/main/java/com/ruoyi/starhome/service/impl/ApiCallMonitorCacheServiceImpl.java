@@ -1,7 +1,7 @@
 package com.ruoyi.starhome.service.impl;
 
 import com.ruoyi.common.core.redis.RedisCache;
-import com.ruoyi.starhome.service.ApiCallMonitorCacheService;
+import com.ruoyi.starhome.service.IApiCallMonitorCacheService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
@@ -12,7 +12,7 @@ import java.util.Date;
 import java.util.concurrent.TimeUnit;
 
 @Service
-public class ApiCallMonitorCacheServiceImpl implements ApiCallMonitorCacheService {
+public class ApiCallMonitorCacheServiceImpl implements IApiCallMonitorCacheService {
 
     public static final String MONITOR_USER_SET_KEY = "starhome:monitor:user:set";
     public static final String MONITOR_USER_KEY_PREFIX = "starhome:monitor:user:";

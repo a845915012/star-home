@@ -4,6 +4,7 @@ import com.ruoyi.common.annotation.Log;
 import com.ruoyi.common.core.controller.BaseController;
 import com.ruoyi.common.core.domain.AjaxResult;
 import com.ruoyi.common.enums.BusinessType;
+import com.ruoyi.framework.security.util.SecurityFrameworkUtils;
 import com.ruoyi.starhome.domain.dto.TaskApiInvokeRequest;
 import com.ruoyi.starhome.service.ITaskApiInvokeService;
 import io.swagger.v3.oas.annotations.Operation;
@@ -41,6 +42,8 @@ public class TaskApiInvokeController extends BaseController {
     @Log(title = "任务调用", businessType = BusinessType.UPDATE)
     @PostMapping(value = "/invoke", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public AjaxResult invoke(@ModelAttribute TaskApiInvokeRequest request) {
+        request.setUserId(SecurityFrameworkUtils.getLoginUserId());
+        request.setUseSse(Boolean.TRUE);
         return success(taskApiInvokeService.invokeTaskApi(request));
     }
 
@@ -48,12 +51,15 @@ public class TaskApiInvokeController extends BaseController {
     @Log(title = "任务调用Blocking", businessType = BusinessType.UPDATE)
     @PostMapping(value = "/invokeBlocking", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public AjaxResult invokeBlocking(@ModelAttribute TaskApiInvokeRequest request) {
+        request.setUserId(SecurityFrameworkUtils.getLoginUserId());
+        request.setUseSse(false);
         return success(taskApiInvokeService.invokeTaskApiBlocking(request));
     }
 
     @Operation(summary = "建立任务SSE流", description = "前端传入userId，建立任务调用的SSE连接")
     @GetMapping(value = "/stream", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
-    public SseEmitter stream(@RequestParam("userId") Long userId) {
+    public SseEmitter stream() {
+        Long userId = SecurityFrameworkUtils.getLoginUserId();
         return taskApiInvokeService.createStream(userId);
     }
 }

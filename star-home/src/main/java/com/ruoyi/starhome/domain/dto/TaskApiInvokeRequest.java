@@ -1,7 +1,6 @@
 package com.ruoyi.starhome.domain.dto;
 
 import lombok.Data;
-import org.springframework.web.multipart.MultipartFile;
 
 import java.io.Serial;
 import java.io.Serializable;
@@ -14,7 +13,7 @@ public class TaskApiInvokeRequest implements Serializable {
 
     private Long userId;
     private String apiNumber;
-    private List<MultipartFile> files;
+    private List<String> filePaths;
     private String question;
     /**
      * 是否使用SSE流式输出（与 /stream 接口配合）。

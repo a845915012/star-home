@@ -1,5 +1,5 @@
 package com.ruoyi.starhome.service;
 
-public interface ApiCallMonitorCacheService {
+public interface IApiCallMonitorCacheService {
     void recordCall(Long userId);
 }

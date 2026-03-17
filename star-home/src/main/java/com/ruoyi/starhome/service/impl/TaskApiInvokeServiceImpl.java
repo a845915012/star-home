@@ -5,16 +5,16 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
+import com.ruoyi.common.config.RuoYiConfig;
 import com.ruoyi.common.exception.ServiceException;
 import com.ruoyi.starhome.domain.FurnitureNumberApiPoolDO;
-import com.ruoyi.starhome.domain.FurnitureUserPackageRightsDO;
 import com.ruoyi.starhome.domain.dto.AiApiCallResult;
 import com.ruoyi.starhome.domain.dto.FileInfo;
 import com.ruoyi.starhome.domain.dto.TaskApiInvokeRequest;
 import com.ruoyi.starhome.domain.dto.TaskApiInvokeResponse;
 import com.ruoyi.starhome.mapper.FurnitureNumberApiPoolMapper;
 import com.ruoyi.starhome.mapper.FurnitureUserPackageRightsMapper;
-import com.ruoyi.starhome.service.ApiCallMonitorCacheService;
+import com.ruoyi.starhome.service.IApiCallMonitorCacheService;
 import com.ruoyi.starhome.service.ITaskApiInvokeService;
 import lombok.extern.slf4j.Slf4j;
 import okhttp3.*;
@@ -22,13 +22,14 @@ import okio.BufferedSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import org.springframework.web.multipart.MultipartFile;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
+import java.io.File;
 import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.math.BigDecimal;
 import java.util.ArrayList;
-import java.util.Date;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
@@ -41,7 +42,7 @@ public class TaskApiInvokeServiceImpl implements ITaskApiInvokeService {
     private final ObjectMapper mapper = new ObjectMapper();
     private final OkHttpClient client = new OkHttpClient.Builder()
             .connectTimeout(5, TimeUnit.SECONDS)
-            .readTimeout(60, TimeUnit.SECONDS)
+            .readTimeout(180, TimeUnit.SECONDS)
             .build();
 
     private final Map<Long, SseEmitter> emitterMap = new ConcurrentHashMap<>();
@@ -53,7 +54,7 @@ public class TaskApiInvokeServiceImpl implements ITaskApiInvokeService {
     private FurnitureNumberApiPoolMapper furnitureNumberApiPoolMapper;
 
     @Autowired
-    private ApiCallMonitorCacheService apiCallMonitorCacheService;
+    private IApiCallMonitorCacheService IApiCallMonitorCacheService;
 
     @Override
     @Transactional(rollbackFor = Exception.class)
@@ -61,7 +62,6 @@ public class TaskApiInvokeServiceImpl implements ITaskApiInvokeService {
         if (request == null || request.getUserId() == null || request.getApiNumber() == null) {
             throw new ServiceException("userId和apiNumber不能为空");
         }
-        request.setUseSse(Boolean.TRUE);
 //        Date now = new Date();
 //        FurnitureUserPackageRightsDO rights = furnitureUserPackageRightsMapper.selectOne(
 //                new LambdaQueryWrapper<FurnitureUserPackageRightsDO>()
@@ -108,9 +108,6 @@ public class TaskApiInvokeServiceImpl implements ITaskApiInvokeService {
     @Override
     @Transactional(rollbackFor = Exception.class)
     public TaskApiInvokeResponse invokeTaskApiBlocking(TaskApiInvokeRequest request) {
-        if (request != null) {
-            request.setUseSse(false);
-        }
         return invokeTaskApi(request);
     }
 
@@ -147,19 +144,23 @@ public class TaskApiInvokeServiceImpl implements ITaskApiInvokeService {
         result.setCallCost(BigDecimal.ZERO);
         List<String> fileIds = null;
         try {
-            List<MultipartFile> files = request.getFiles();
+            List<String> filePaths = request.getFilePaths();
+            if (filePaths == null || filePaths.isEmpty()) {
+                throw new ServiceException("文件地址不能为空");
+            }
 
             List<FileInfo> fileInfos = new ArrayList<>();
-            for (MultipartFile file : files) {
+            for (String filePath : filePaths) {
+                File file = resolveProfileFile(filePath);
                 fileInfos.add(new FileInfo(
-                        file.getBytes(),
-                        file.getOriginalFilename(),
-                        file.getContentType()
+                        readFileBytes(file),
+                        file.getName(),
+                        resolveMimeType(file)
                 ));
             }
-            fileIds = uploadMultipleFiles(fileInfos,user,apiPool.getApiUrl(),apiPool.getApiKey());
+            fileIds = uploadMultipleFiles(fileInfos, user, apiPool.getApiUrl(), apiPool.getApiKey());
         } catch (IOException e) {
-            log.error("上传图片至dify失败:{}",e.getMessage());
+            log.error("上传图片至dify失败:{}", e.getMessage());
             throw new ServiceException("上传图片至dify失败");
         }
         try {
@@ -306,6 +307,9 @@ public class TaskApiInvokeServiceImpl implements ITaskApiInvokeService {
                         break;
                     }
                     String chunk = extractStreamingChunk(data);
+                    if(chunk.isBlank()){
+                        continue;
+                    }
                     fullResult.append(chunk);
                     ObjectNode messageEvent = mapper.createObjectNode();
                     messageEvent.put("event", "message");
@@ -334,7 +338,7 @@ public class TaskApiInvokeServiceImpl implements ITaskApiInvokeService {
             if (delta != null && !delta.isNull()) {
                 return delta.asText();
             }
-            return dataLine;
+            return "";
         } catch (Exception ignore) {
             return dataLine;
         }
@@ -383,6 +387,35 @@ public class TaskApiInvokeServiceImpl implements ITaskApiInvokeService {
             JsonNode root = mapper.readTree(responseBody);
             return root.path("id").asText();
         }
+    }
+
+    private File resolveProfileFile(String filePath) {
+        if (filePath == null || filePath.isBlank()) {
+            throw new ServiceException("文件地址不能为空");
+        }
+        String normalized = filePath.trim().replace("\\", "/");
+        if (!normalized.startsWith("/profile/")) {
+            throw new ServiceException("文件地址格式不正确: " + filePath);
+        }
+        String relativePath = normalized.substring("/profile".length());
+        File file = new File(RuoYiConfig.getProfile(), relativePath);
+        if (!file.exists() || !file.isFile()) {
+            throw new ServiceException("文件不存在: " + filePath);
+        }
+        return file;
+    }
+
+    private byte[] readFileBytes(File file) throws IOException {
+        return Files.readAllBytes(file.toPath());
+    }
+
+    private String resolveMimeType(File file) throws IOException {
+        Path path = file.toPath();
+        String mimeType = Files.probeContentType(path);
+        if (mimeType != null && !mimeType.isBlank()) {
+            return mimeType;
+        }
+        return "application/octet-stream";
     }
 
 }
