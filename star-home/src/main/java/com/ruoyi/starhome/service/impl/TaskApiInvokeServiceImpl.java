@@ -8,6 +8,7 @@ import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.ruoyi.common.config.RuoYiConfig;
 import com.ruoyi.common.exception.ServiceException;
 import com.ruoyi.starhome.domain.FurnitureNumberApiPoolDO;
+import com.ruoyi.starhome.domain.FurnitureUserBalanceAccountDO;
 import com.ruoyi.starhome.domain.dto.AiApiCallResult;
 import com.ruoyi.starhome.domain.dto.FileInfo;
 import com.ruoyi.starhome.domain.dto.TaskApiInvokeRequest;
@@ -15,6 +16,7 @@ import com.ruoyi.starhome.domain.dto.TaskApiInvokeResponse;
 import com.ruoyi.starhome.mapper.FurnitureNumberApiPoolMapper;
 import com.ruoyi.starhome.mapper.FurnitureUserPackageRightsMapper;
 import com.ruoyi.starhome.service.IApiCallMonitorCacheService;
+import com.ruoyi.starhome.service.IFurnitureUserBalanceAccountService;
 import com.ruoyi.starhome.service.ITaskApiInvokeService;
 import lombok.extern.slf4j.Slf4j;
 import okhttp3.*;
@@ -45,6 +47,8 @@ public class TaskApiInvokeServiceImpl implements ITaskApiInvokeService {
             .readTimeout(180, TimeUnit.SECONDS)
             .build();
 
+    private static final BigDecimal TASK_API_CONSUME_AMOUNT = new BigDecimal("9.9");
+
     private final Map<Long, SseEmitter> emitterMap = new ConcurrentHashMap<>();
 
     @Autowired
@@ -54,7 +58,13 @@ public class TaskApiInvokeServiceImpl implements ITaskApiInvokeService {
     private FurnitureNumberApiPoolMapper furnitureNumberApiPoolMapper;
 
     @Autowired
+    private IFurnitureUserBalanceAccountService furnitureUserBalanceAccountService;
+
+    @Autowired
     private IApiCallMonitorCacheService IApiCallMonitorCacheService;
+
+    @Autowired
+    private IApiCallMonitorCacheService apiCallMonitorCacheService;
 
     @Override
     @Transactional(rollbackFor = Exception.class)
@@ -62,46 +72,22 @@ public class TaskApiInvokeServiceImpl implements ITaskApiInvokeService {
         if (request == null || request.getUserId() == null || request.getApiNumber() == null) {
             throw new ServiceException("userId和apiNumber不能为空");
         }
-//        Date now = new Date();
-//        FurnitureUserPackageRightsDO rights = furnitureUserPackageRightsMapper.selectOne(
-//                new LambdaQueryWrapper<FurnitureUserPackageRightsDO>()
-//                        .eq(FurnitureUserPackageRightsDO::getUserId, request.getUserId())
-//                        .eq(FurnitureUserPackageRightsDO::getIsActive, 1)
-//                        .and(w -> w.isNull(FurnitureUserPackageRightsDO::getExpireTime)
-//                                .or().ge(FurnitureUserPackageRightsDO::getExpireTime, now))
-//                        .orderByDesc(FurnitureUserPackageRightsDO::getId)
-//                        .last("limit 1")
-//        );
-//
-//        if (rights == null) {
-//            throw new ServiceException("用户没有可用套餐权益");
-//        }
-//
-//        Integer remainingCalls = rights.getRemainingCalls();
-//        boolean unlimited = remainingCalls != null && remainingCalls == -1;
-//        if (!unlimited && (remainingCalls == null || remainingCalls <= 0)) {
-//            throw new ServiceException("剩余调用次数不足");
-//        }
+
+        validateBalanceEnough(request.getUserId());
 
         AiApiCallResult callResult = callAiApiByApiNumber(request);
 
-        // 扣减次数
-//        rights.setUsedCalls(rights.getUsedCalls() == null ? 1 : rights.getUsedCalls() + 1);
-//        if (!unlimited) {
-//            rights.setRemainingCalls(remainingCalls - 1);
-//        }
-//        furnitureUserPackageRightsMapper.updateById(rights);
-//
-//        // 调用监控先写缓存
-//        apiCallMonitorCacheService.recordCall(request.getUserId());
+        // 业务完成后扣减余额
+        furnitureUserBalanceAccountService.consume(request.getUserId(), TASK_API_CONSUME_AMOUNT);
+
+        // 调用监控先写缓存
+        apiCallMonitorCacheService.recordCall(request.getUserId());
 
         TaskApiInvokeResponse response = new TaskApiInvokeResponse();
         response.setUserId(request.getUserId());
         response.setApiNumber(request.getApiNumber());
         response.setCallCost(callResult.getCallCost());
         response.setApiResult(callResult.getApiResult());
-//        response.setUsedCalls(rights.getUsedCalls());
-//        response.setRemainingCalls(unlimited ? -1 : rights.getRemainingCalls());
         return response;
     }
 
@@ -416,6 +402,14 @@ public class TaskApiInvokeServiceImpl implements ITaskApiInvokeService {
             return mimeType;
         }
         return "application/octet-stream";
+    }
+
+    private void validateBalanceEnough(Long userId) {
+        FurnitureUserBalanceAccountDO account = furnitureUserBalanceAccountService.selectFurnitureUserBalanceAccountByUserId(userId);
+        BigDecimal balance = account == null ? BigDecimal.ZERO : account.getBalance();
+        if (balance == null || balance.compareTo(TASK_API_CONSUME_AMOUNT) < 0) {
+            throw new ServiceException("余额不足");
+        }
     }
 
 }

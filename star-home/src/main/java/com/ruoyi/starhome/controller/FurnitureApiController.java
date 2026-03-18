@@ -30,7 +30,7 @@ public class FurnitureApiController {
             description = "场景图片生成接口"
     )
     @Log(title = "场景图片生成", businessType = BusinessType.UPDATE)
-    @PostMapping(value = "/image/generate-scene", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    @PostMapping(value = "/image/generate-scene", consumes = MediaType.APPLICATION_JSON_VALUE)
     public AjaxResult imageGenerateScene(@RequestBody GenerateSceneRequest request) {
         return success(furnitureApiService.imageGenerateScene(request));
     }
@@ -41,7 +41,7 @@ public class FurnitureApiController {
             description = "文案生成接口"
     )
     @Log(title = "文案生成接口", businessType = BusinessType.UPDATE)
-    @PostMapping(value = "/copy/generate", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    @PostMapping(value = "/copy/generate", consumes = MediaType.APPLICATION_JSON_VALUE)
     public AjaxResult copyGenerate(@RequestBody CopyGenerateRequest request) {
         return success(furnitureApiService.copyGenerate(request));
     }

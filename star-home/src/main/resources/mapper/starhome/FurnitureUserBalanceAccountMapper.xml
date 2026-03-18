@@ -1,0 +1,54 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.ruoyi.starhome.mapper.FurnitureUserBalanceAccountMapper">
+
+    <resultMap type="com.ruoyi.starhome.domain.vo.FurnitureUserBalanceAccountPageVO" id="FurnitureUserBalanceAccountResult">
+        <result property="id" column="id"/>
+        <result property="userId" column="user_id"/>
+        <result property="balance" column="balance"/>
+        <result property="useBalance" column="use_balance"/>
+        <result property="createTime" column="create_time"/>
+        <result property="updateTime" column="update_time"/>
+        <result property="username" column="user_name"/>
+    </resultMap>
+
+    <sql id="selectFurnitureUserBalanceAccountVo">
+        select fua.id,
+               fua.user_id,
+               fua.balance,
+               fua.use_balance,
+               fua.create_time,
+               fua.update_time,
+               su.user_name
+        from furniture_user_balance_account fua
+                 left join sys_user su on su.user_id = fua.user_id
+    </sql>
+
+    <select id="selectFurnitureUserBalanceAccountList" resultMap="FurnitureUserBalanceAccountResult">
+        <include refid="selectFurnitureUserBalanceAccountVo"/>
+        <where>
+            <if test="username != null and username != ''">and su.user_name like concat('%', #{username}, '%')</if>
+        </where>
+        order by fua.id desc
+    </select>
+
+    <select id="selectFurnitureUserBalanceAccountByUserId" resultType="com.ruoyi.starhome.domain.FurnitureUserBalanceAccountDO">
+        select fua.*
+        from furniture_user_balance_account fua
+        where fua.user_id = #{userId}
+        order by fua.id desc
+        limit 1
+    </select>
+
+    <select id="selectUserBalanceSummaryByUserId" resultMap="FurnitureUserBalanceAccountResult">
+        <include refid="selectFurnitureUserBalanceAccountVo"/>
+        <where>
+            and fua.user_id = #{userId}
+        </where>
+        order by fua.id desc
+        limit 1
+    </select>
+
+</mapper>
