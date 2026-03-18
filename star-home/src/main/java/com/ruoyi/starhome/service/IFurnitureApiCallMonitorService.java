@@ -1,5 +1,6 @@
 package com.ruoyi.starhome.service;
 
+import com.ruoyi.common.core.page.TableDataInfo;
 import com.ruoyi.starhome.domain.FurnitureApiCallMonitor;
 
 import java.util.List;
@@ -33,6 +34,14 @@ public interface IFurnitureApiCallMonitorService {
      * @return 家居接口调用监控集合
      */
     public List<FurnitureApiCallMonitor> selectFurnitureApiCallMonitorList(FurnitureApiCallMonitor furnitureApiCallMonitor);
+
+    /**
+     * 分页查询家居接口调用监控（合并缓存数据）
+     *
+     * @param furnitureApiCallMonitor 家居接口调用监控
+     * @return 分页结果
+     */
+    public TableDataInfo selectFurnitureApiCallMonitorPage(FurnitureApiCallMonitor furnitureApiCallMonitor);
 
     /**
      * 新增家居接口调用监控
