@@ -1,5 +1,6 @@
 package com.ruoyi.starhome.domain.dto;
 
+import com.ruoyi.starhome.enums.ConsumeConstants;
 import lombok.Data;
 
 import java.io.Serial;
@@ -21,4 +22,12 @@ public class TaskApiInvokeRequest implements Serializable {
      * false: 走 blocking + 直接HTTP返回
      */
     private Boolean useSse;
+    /**
+     * 模块
+     */
+    private String module;
+    /**
+     * 消费
+     */
+    private ConsumeConstants consumeConstants;
 }

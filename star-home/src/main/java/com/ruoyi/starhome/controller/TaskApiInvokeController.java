@@ -6,6 +6,7 @@ import com.ruoyi.common.core.domain.AjaxResult;
 import com.ruoyi.common.enums.BusinessType;
 import com.ruoyi.framework.security.util.SecurityFrameworkUtils;
 import com.ruoyi.starhome.domain.dto.TaskApiInvokeRequest;
+import com.ruoyi.starhome.enums.ConsumeConstants;
 import com.ruoyi.starhome.service.ITaskApiInvokeService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.media.Content;
@@ -44,7 +45,8 @@ public class TaskApiInvokeController extends BaseController {
     public AjaxResult invoke(@ModelAttribute TaskApiInvokeRequest request) {
         request.setUserId(SecurityFrameworkUtils.getLoginUserId());
         request.setUseSse(Boolean.TRUE);
-        return success(taskApiInvokeService.invokeTaskApi(request,""));
+        request.setConsumeConstants(ConsumeConstants.TEST);
+        return success(taskApiInvokeService.invokeTaskApi(request));
     }
 
     @Operation(summary = "调用任务接口（Blocking）", description = "入参不变，强制 useSse=false，直接HTTP返回结果")
@@ -53,7 +55,8 @@ public class TaskApiInvokeController extends BaseController {
     public AjaxResult invokeBlocking(@ModelAttribute TaskApiInvokeRequest request) {
         request.setUserId(SecurityFrameworkUtils.getLoginUserId());
         request.setUseSse(false);
-        return success(taskApiInvokeService.invokeTaskApiBlocking(request,""));
+        request.setConsumeConstants(ConsumeConstants.TEST);
+        return success(taskApiInvokeService.invokeTaskApiBlocking(request));
     }
 
     @Operation(summary = "建立任务SSE流", description = "前端传入userId，建立任务调用的SSE连接")

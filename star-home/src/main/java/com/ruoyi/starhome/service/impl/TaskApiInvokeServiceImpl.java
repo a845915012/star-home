@@ -76,17 +76,17 @@ public class TaskApiInvokeServiceImpl implements ITaskApiInvokeService {
 
     @Override
     @Transactional(rollbackFor = Exception.class)
-    public TaskApiInvokeResponse invokeTaskApi(TaskApiInvokeRequest request,String module) {
+    public TaskApiInvokeResponse invokeTaskApi(TaskApiInvokeRequest request) {
         if (request == null || request.getUserId() == null || request.getApiNumber() == null) {
             throw new ServiceException("userId和apiNumber不能为空");
         }
 
         validateBalanceEnough(request.getUserId());
 
-        AiApiCallResult callResult = callAiApiByApiNumber(request,module);
+        AiApiCallResult callResult = callAiApiByApiNumber(request);
 
         // 业务完成后扣减余额
-        furnitureUserBalanceAccountService.consume(request.getUserId(), TASK_API_CONSUME_AMOUNT);
+        furnitureUserBalanceAccountService.consume(request.getUserId(), request.getConsumeConstants().getPrice());
 
         // 调用监控先写缓存
         apiCallMonitorCacheService.recordCall(request.getUserId());
@@ -101,8 +101,8 @@ public class TaskApiInvokeServiceImpl implements ITaskApiInvokeService {
 
     @Override
     @Transactional(rollbackFor = Exception.class)
-    public TaskApiInvokeResponse invokeTaskApiBlocking(TaskApiInvokeRequest request,String module) {
-        return invokeTaskApi(request,module);
+    public TaskApiInvokeResponse invokeTaskApiBlocking(TaskApiInvokeRequest request) {
+        return invokeTaskApi(request);
     }
 
     @Override
@@ -122,7 +122,7 @@ public class TaskApiInvokeServiceImpl implements ITaskApiInvokeService {
      * 按 apiNumber 查询对应接口配置。
      * 说明：这里只做配置查询占位，后续真实AI调用业务由你补充。
      */
-    private AiApiCallResult callAiApiByApiNumber(TaskApiInvokeRequest request,String module) {
+    private AiApiCallResult callAiApiByApiNumber(TaskApiInvokeRequest request) {
         String user = String.valueOf(request.getUserId());
         FurnitureNumberApiPoolDO apiPool = furnitureNumberApiPoolMapper.selectOne(
                 new LambdaQueryWrapper<FurnitureNumberApiPoolDO>()
@@ -159,7 +159,7 @@ public class TaskApiInvokeServiceImpl implements ITaskApiInvokeService {
         }
         try {
             boolean useSse = Boolean.TRUE.equals(request.getUseSse());
-            result.setApiResult(runWorkflowWithMultipleFiles(request.getQuestion(), fileIds, user, apiPool.getApiUrl(), apiPool.getApiKey(), useSse, module));
+            result.setApiResult(runWorkflowWithMultipleFiles(request.getQuestion(), fileIds, user, apiPool.getApiUrl(), apiPool.getApiKey(), useSse,request.getModule()));
         } catch (IOException e) {
             log.error("获取工作流结果异常:{}",e.getMessage());
             throw new ServiceException("获取工作流结果异常");
@@ -184,7 +184,7 @@ public class TaskApiInvokeServiceImpl implements ITaskApiInvokeService {
         Request request = buildChatMessagesRequest(url, apiKey, root);
 
         if (!useSse) {
-            return executeBlocking(request);
+            return executeBlocking(request, userId, module);
         }
         return executeStreaming(request, emitter, userId, module);
     }
@@ -225,7 +225,7 @@ public class TaskApiInvokeServiceImpl implements ITaskApiInvokeService {
                 .build();
     }
 
-    private String executeBlocking(Request request) throws IOException {
+    private String executeBlocking(Request request,Long userId, String module) throws IOException {
         try (Response response = client.newCall(request).execute()) {
             if (!response.isSuccessful()) {
                 ResponseBody errorBody = response.body();
@@ -236,6 +236,8 @@ public class TaskApiInvokeServiceImpl implements ITaskApiInvokeService {
                 throw new IOException("工作流调用失败: 响应体为空");
             }
             String raw = responseBody.string();
+            JsonNode usageNode = mapper.readTree("{\"prompt_tokens\":\"0\",\"completion_tokens\":\"0\",\"total_tokens\":\"0\",\"total_price\":\"1\"}");
+            recordUsageAsync(userId,module,"gemini_fusion_4imgs",usageNode);
             return extractBlockingAnswer(raw);
         }
     }

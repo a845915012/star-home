@@ -6,6 +6,7 @@ import com.ruoyi.starhome.domain.dto.CopyGenerateRequest;
 import com.ruoyi.starhome.domain.dto.GenerateSceneRequest;
 import com.ruoyi.starhome.domain.dto.TaskApiInvokeRequest;
 import com.ruoyi.starhome.domain.dto.TaskApiInvokeResponse;
+import com.ruoyi.starhome.enums.ConsumeConstants;
 import com.ruoyi.starhome.service.IFurnitureApiService;
 import com.ruoyi.starhome.service.ITaskApiInvokeService;
 import org.apache.commons.lang3.StringUtils;
@@ -36,7 +37,9 @@ public class FurnitureApiServiceImpl implements IFurnitureApiService {
             question.append(request.getViewPrompt());
         }
         taskRequest.setQuestion(question.toString());
-        return taskApiInvokeService.invokeTaskApiBlocking(taskRequest,"图生图");
+        taskRequest.setModule("图生图");
+        taskRequest.setConsumeConstants(ConsumeConstants.IMAGE2IMAGE_FINAL);
+        return taskApiInvokeService.invokeTaskApiBlocking(taskRequest);
     }
 
     @Override
@@ -52,7 +55,9 @@ public class FurnitureApiServiceImpl implements IFurnitureApiService {
             question.append(request.getUserPrompt());
         }
         taskRequest.setQuestion(question.toString());
-        return taskApiInvokeService.invokeTaskApi(taskRequest,"灵感文案");
+        taskRequest.setModule("灵感文案");
+        taskRequest.setConsumeConstants(ConsumeConstants.IMAGE2TEXT);
+        return taskApiInvokeService.invokeTaskApi(taskRequest);
     }
 
     @Override

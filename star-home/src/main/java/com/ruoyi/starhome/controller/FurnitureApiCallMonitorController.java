@@ -13,7 +13,7 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
-@Tag(name = "API调用监控")
+@Tag(name = "后台管理-API调用监控")
 @RestController
 @RequestMapping("/starhome/apiCallMonitor")
 public class FurnitureApiCallMonitorController extends BaseController {
