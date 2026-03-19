@@ -44,7 +44,7 @@ public class TaskApiInvokeController extends BaseController {
     public AjaxResult invoke(@ModelAttribute TaskApiInvokeRequest request) {
         request.setUserId(SecurityFrameworkUtils.getLoginUserId());
         request.setUseSse(Boolean.TRUE);
-        return success(taskApiInvokeService.invokeTaskApi(request));
+        return success(taskApiInvokeService.invokeTaskApi(request,""));
     }
 
     @Operation(summary = "调用任务接口（Blocking）", description = "入参不变，强制 useSse=false，直接HTTP返回结果")
@@ -53,7 +53,7 @@ public class TaskApiInvokeController extends BaseController {
     public AjaxResult invokeBlocking(@ModelAttribute TaskApiInvokeRequest request) {
         request.setUserId(SecurityFrameworkUtils.getLoginUserId());
         request.setUseSse(false);
-        return success(taskApiInvokeService.invokeTaskApiBlocking(request));
+        return success(taskApiInvokeService.invokeTaskApiBlocking(request,""));
     }
 
     @Operation(summary = "建立任务SSE流", description = "前端传入userId，建立任务调用的SSE连接")

@@ -5,9 +5,9 @@ import com.ruoyi.starhome.domain.dto.TaskApiInvokeResponse;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
 public interface ITaskApiInvokeService {
-    TaskApiInvokeResponse invokeTaskApi(TaskApiInvokeRequest request);
+    TaskApiInvokeResponse invokeTaskApi(TaskApiInvokeRequest request,String module);
 
-    TaskApiInvokeResponse invokeTaskApiBlocking(TaskApiInvokeRequest request);
+    TaskApiInvokeResponse invokeTaskApiBlocking(TaskApiInvokeRequest request,String module);
 
     SseEmitter createStream(Long userId);
 }

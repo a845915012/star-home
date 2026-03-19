@@ -7,17 +7,20 @@ import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.ruoyi.common.config.RuoYiConfig;
 import com.ruoyi.common.exception.ServiceException;
+import com.ruoyi.starhome.domain.FurnitureAiCallRecordsDO;
 import com.ruoyi.starhome.domain.FurnitureNumberApiPoolDO;
 import com.ruoyi.starhome.domain.FurnitureUserBalanceAccountDO;
 import com.ruoyi.starhome.domain.dto.AiApiCallResult;
 import com.ruoyi.starhome.domain.dto.FileInfo;
 import com.ruoyi.starhome.domain.dto.TaskApiInvokeRequest;
 import com.ruoyi.starhome.domain.dto.TaskApiInvokeResponse;
+import com.ruoyi.starhome.mapper.FurnitureAiCallRecordsMapper;
 import com.ruoyi.starhome.mapper.FurnitureNumberApiPoolMapper;
 import com.ruoyi.starhome.mapper.FurnitureUserPackageRightsMapper;
 import com.ruoyi.starhome.service.IApiCallMonitorCacheService;
 import com.ruoyi.starhome.service.IFurnitureUserBalanceAccountService;
 import com.ruoyi.starhome.service.ITaskApiInvokeService;
+import com.ruoyi.framework.manager.AsyncManager;
 import lombok.extern.slf4j.Slf4j;
 import okhttp3.*;
 import okio.BufferedSource;
@@ -32,8 +35,10 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.math.BigDecimal;
 import java.util.ArrayList;
+import java.util.Date;
 import java.util.List;
 import java.util.Map;
+import java.util.TimerTask;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
 
@@ -61,6 +66,9 @@ public class TaskApiInvokeServiceImpl implements ITaskApiInvokeService {
     private IFurnitureUserBalanceAccountService furnitureUserBalanceAccountService;
 
     @Autowired
+    private FurnitureAiCallRecordsMapper furnitureAiCallRecordsMapper;
+
+    @Autowired
     private IApiCallMonitorCacheService IApiCallMonitorCacheService;
 
     @Autowired
@@ -68,14 +76,14 @@ public class TaskApiInvokeServiceImpl implements ITaskApiInvokeService {
 
     @Override
     @Transactional(rollbackFor = Exception.class)
-    public TaskApiInvokeResponse invokeTaskApi(TaskApiInvokeRequest request) {
+    public TaskApiInvokeResponse invokeTaskApi(TaskApiInvokeRequest request,String module) {
         if (request == null || request.getUserId() == null || request.getApiNumber() == null) {
             throw new ServiceException("userId和apiNumber不能为空");
         }
 
         validateBalanceEnough(request.getUserId());
 
-        AiApiCallResult callResult = callAiApiByApiNumber(request);
+        AiApiCallResult callResult = callAiApiByApiNumber(request,module);
 
         // 业务完成后扣减余额
         furnitureUserBalanceAccountService.consume(request.getUserId(), TASK_API_CONSUME_AMOUNT);
@@ -93,8 +101,8 @@ public class TaskApiInvokeServiceImpl implements ITaskApiInvokeService {
 
     @Override
     @Transactional(rollbackFor = Exception.class)
-    public TaskApiInvokeResponse invokeTaskApiBlocking(TaskApiInvokeRequest request) {
-        return invokeTaskApi(request);
+    public TaskApiInvokeResponse invokeTaskApiBlocking(TaskApiInvokeRequest request,String module) {
+        return invokeTaskApi(request,module);
     }
 
     @Override
@@ -114,7 +122,7 @@ public class TaskApiInvokeServiceImpl implements ITaskApiInvokeService {
      * 按 apiNumber 查询对应接口配置。
      * 说明：这里只做配置查询占位，后续真实AI调用业务由你补充。
      */
-    private AiApiCallResult callAiApiByApiNumber(TaskApiInvokeRequest request) {
+    private AiApiCallResult callAiApiByApiNumber(TaskApiInvokeRequest request,String module) {
         String user = String.valueOf(request.getUserId());
         FurnitureNumberApiPoolDO apiPool = furnitureNumberApiPoolMapper.selectOne(
                 new LambdaQueryWrapper<FurnitureNumberApiPoolDO>()
@@ -151,7 +159,7 @@ public class TaskApiInvokeServiceImpl implements ITaskApiInvokeService {
         }
         try {
             boolean useSse = Boolean.TRUE.equals(request.getUseSse());
-            result.setApiResult(runWorkflowWithMultipleFiles(request.getQuestion(), fileIds, user, apiPool.getApiUrl(), apiPool.getApiKey(), useSse));
+            result.setApiResult(runWorkflowWithMultipleFiles(request.getQuestion(), fileIds, user, apiPool.getApiUrl(), apiPool.getApiKey(), useSse, module));
         } catch (IOException e) {
             log.error("获取工作流结果异常:{}",e.getMessage());
             throw new ServiceException("获取工作流结果异常");
@@ -164,7 +172,7 @@ public class TaskApiInvokeServiceImpl implements ITaskApiInvokeService {
      * useSse = true  -> response_mode=streaming + 通过SseEmitter推送
      * useSse = false -> response_mode=blocking  + 直接返回HTTP结果
      */
-    public String runWorkflowWithMultipleFiles(String question, List<String> fileIds, String user, String url, String apiKey, boolean useSse) throws IOException {
+    public String runWorkflowWithMultipleFiles(String question, List<String> fileIds, String user, String url, String apiKey, boolean useSse, String module) throws IOException {
         Long userId = Long.valueOf(user);
         SseEmitter emitter = emitterMap.get(userId);
 
@@ -178,7 +186,7 @@ public class TaskApiInvokeServiceImpl implements ITaskApiInvokeService {
         if (!useSse) {
             return executeBlocking(request);
         }
-        return executeStreaming(request, emitter, userId);
+        return executeStreaming(request, emitter, userId, module);
     }
 
     private ObjectNode buildChatMessagesPayload(String question, List<String> fileIds, String user, String responseMode) {
@@ -256,7 +264,7 @@ public class TaskApiInvokeServiceImpl implements ITaskApiInvokeService {
         }
     }
 
-    private String executeStreaming(Request request, SseEmitter emitter, Long userId) throws IOException {
+    private String executeStreaming(Request request, SseEmitter emitter, Long userId, String module) throws IOException {
         try (Response response = client.newCall(request).execute()) {
             if (!response.isSuccessful()) {
                 ResponseBody errorBody = response.body();
@@ -266,7 +274,7 @@ public class TaskApiInvokeServiceImpl implements ITaskApiInvokeService {
             if (responseBody == null) {
                 throw new IOException("工作流调用失败: 响应体为空");
             }
-            String result = streamWorkflowResult(responseBody, emitter);
+            String result = streamWorkflowResult(responseBody, emitter, userId, module);
             emitter.complete();
             return result;
         } finally {
@@ -274,7 +282,7 @@ public class TaskApiInvokeServiceImpl implements ITaskApiInvokeService {
         }
     }
 
-    private String streamWorkflowResult(ResponseBody responseBody, SseEmitter emitter) throws IOException {
+    private String streamWorkflowResult(ResponseBody responseBody, SseEmitter emitter, Long userId, String module) throws IOException {
         StringBuilder fullResult = new StringBuilder();
         try (BufferedSource source = responseBody.source()) {
             while (!source.exhausted()) {
@@ -292,15 +300,41 @@ public class TaskApiInvokeServiceImpl implements ITaskApiInvokeService {
                         emitter.complete();
                         break;
                     }
-                    String chunk = extractStreamingChunk(data);
-                    if(chunk.isBlank()){
+
+                    boolean hasAnswer = data.contains("\"answer\"");
+                    boolean hasDelta = data.contains("\"delta\"");
+                    boolean hasNodeFinished = data.contains("\"event\":\"node_finished\"");
+
+                    if (!hasAnswer && !hasDelta && !hasNodeFinished) {
                         continue;
                     }
-                    fullResult.append(chunk);
-                    ObjectNode messageEvent = mapper.createObjectNode();
-                    messageEvent.put("event", "message");
-                    messageEvent.put("data", chunk);
-                    emitter.send(SseEmitter.event().data(messageEvent));
+
+                    if (hasNodeFinished) {
+                        JsonNode root = parseStreamingJson(data);
+                        if (root == null) {
+                            continue;
+                        }
+                        String aiMode = root.path("data").path("process_data").path("model_name").asText(null);
+                        JsonNode usage = extractUsageNode(root);
+                        if (usage != null) {
+                            recordUsageAsync(userId, module, aiMode, usage);
+                        }
+                        continue;
+                    }
+
+                    String chunk = extractStreamingChunkFast(data, hasAnswer, hasDelta);
+                    if (chunk == null) {
+                        JsonNode root = parseStreamingJson(data);
+                        if (root == null) {
+                            continue;
+                        }
+                        chunk = extractStreamingChunk(root);
+                    }
+
+                    if (!chunk.isBlank()) {
+                        fullResult.append(chunk);
+                        emitter.send(SseEmitter.event().data(chunk));
+                    }
                 }
             }
         } catch (Exception ex) {
@@ -310,23 +344,184 @@ public class TaskApiInvokeServiceImpl implements ITaskApiInvokeService {
         return fullResult.toString();
     }
 
-    private String extractStreamingChunk(String dataLine) {
+    private JsonNode parseStreamingJson(String dataLine) {
+        if (dataLine == null || dataLine.isBlank()) {
+            return null;
+        }
+        try {
+            return mapper.readTree(dataLine);
+        } catch (Exception ignore) {
+            return null;
+        }
+    }
+
+    private String extractStreamingChunk(JsonNode root) {
+        if (root == null || root.isNull()) {
+            return "";
+        }
+        JsonNode answer = root.get("answer");
+        if (answer != null && !answer.isNull()) {
+            return answer.asText();
+        }
+        JsonNode delta = root.get("delta");
+        if (delta != null && !delta.isNull()) {
+            return delta.asText();
+        }
+        return "";
+    }
+
+    private String extractStreamingChunkFast(String dataLine, boolean hasAnswer, boolean hasDelta) {
         if (dataLine == null || dataLine.isBlank()) {
             return "";
         }
-        try {
-            JsonNode root = mapper.readTree(dataLine);
-            JsonNode answer = root.get("answer");
-            if (answer != null && !answer.isNull()) {
-                return answer.asText();
+        String key = hasAnswer ? "\"answer\"" : "\"delta\"";
+        int keyIndex = dataLine.indexOf(key);
+        if (keyIndex < 0) {
+            return null;
+        }
+        int colonIndex = dataLine.indexOf(':', keyIndex + key.length());
+        if (colonIndex < 0) {
+            return null;
+        }
+        int valueStart = dataLine.indexOf('"', colonIndex + 1);
+        if (valueStart < 0) {
+            return null;
+        }
+        int valueEnd = findJsonStringEnd(dataLine, valueStart + 1);
+        if (valueEnd < 0) {
+            return null;
+        }
+        String raw = dataLine.substring(valueStart + 1, valueEnd);
+        return unescapeJsonString(raw);
+    }
+
+    private int findJsonStringEnd(String text, int start) {
+        boolean escape = false;
+        for (int i = start; i < text.length(); i++) {
+            char c = text.charAt(i);
+            if (escape) {
+                escape = false;
+                continue;
             }
-            JsonNode delta = root.get("delta");
-            if (delta != null && !delta.isNull()) {
-                return delta.asText();
+            if (c == '\\') {
+                escape = true;
+                continue;
             }
+            if (c == '"') {
+                return i;
+            }
+        }
+        return -1;
+    }
+
+    private String unescapeJsonString(String raw) {
+        if (raw == null || raw.isEmpty()) {
             return "";
-        } catch (Exception ignore) {
-            return dataLine;
+        }
+        StringBuilder sb = new StringBuilder(raw.length());
+        boolean escape = false;
+        for (int i = 0; i < raw.length(); i++) {
+            char c = raw.charAt(i);
+            if (!escape) {
+                if (c == '\\') {
+                    escape = true;
+                    continue;
+                }
+                sb.append(c);
+                continue;
+            }
+            escape = false;
+            switch (c) {
+                case '"': sb.append('"'); break;
+                case '\\': sb.append('\\'); break;
+                case '/': sb.append('/'); break;
+                case 'b': sb.append('\b'); break;
+                case 'f': sb.append('\f'); break;
+                case 'n': sb.append('\n'); break;
+                case 'r': sb.append('\r'); break;
+                case 't': sb.append('\t'); break;
+                case 'u':
+                    if (i + 4 < raw.length()) {
+                        String hex = raw.substring(i + 1, i + 5);
+                        try {
+                            sb.append((char) Integer.parseInt(hex, 16));
+                            i += 4;
+                        } catch (NumberFormatException ignore) {
+                            sb.append('u');
+                        }
+                    } else {
+                        sb.append('u');
+                    }
+                    break;
+                default: sb.append(c); break;
+            }
+        }
+        return sb.toString();
+    }
+
+    private JsonNode extractUsageNode(JsonNode root) {
+        if (root == null || root.isNull()) {
+            return null;
+        }
+        JsonNode usage = root.path("data").path("outputs").path("usage");
+        if (!usage.isMissingNode() && !usage.isNull()) {
+            return usage;
+        }
+        usage = root.path("data").path("process_data").path("usage");
+        if (!usage.isMissingNode() && !usage.isNull()) {
+            return usage;
+        }
+        usage = root.path("data").path("usage");
+        if (!usage.isMissingNode() && !usage.isNull()) {
+            return usage;
+        }
+        usage = root.path("usage");
+        if (!usage.isMissingNode() && !usage.isNull()) {
+            return usage;
+        }
+        return null;
+    }
+
+    private void recordUsageAsync(Long userId, String module, String aiMode, JsonNode usageNode) {
+        if (userId == null || usageNode == null || usageNode.isNull()) {
+            return;
+        }
+        BigDecimal promptTokens = parseBigDecimal(usageNode.path("prompt_tokens"));
+        BigDecimal completionTokens = parseBigDecimal(usageNode.path("completion_tokens"));
+        BigDecimal totalTokens = parseBigDecimal(usageNode.path("total_tokens"));
+        BigDecimal totalPrice = parseBigDecimal(usageNode.path("total_price"));
+        AsyncManager.me().execute(new TimerTask() {
+            @Override
+            public void run() {
+                FurnitureAiCallRecordsDO record = new FurnitureAiCallRecordsDO();
+                record.setUserId(userId);
+                record.setModule(module);
+                record.setAiMode(aiMode);
+                record.setTokenIn(promptTokens);
+                record.setTokenOut(completionTokens);
+                record.setTotalToken(totalTokens);
+                record.setCost(totalPrice);
+                record.setCreateTime(new Date());
+                furnitureAiCallRecordsMapper.insert(record);
+            }
+        });
+    }
+
+    private BigDecimal parseBigDecimal(JsonNode node) {
+        if (node == null || node.isNull() || node.isMissingNode()) {
+            return null;
+        }
+        if (node.isNumber()) {
+            return node.decimalValue();
+        }
+        String text = node.asText();
+        if (text == null || text.isBlank()) {
+            return null;
+        }
+        try {
+            return new BigDecimal(text);
+        } catch (NumberFormatException ignore) {
+            return null;
         }
     }
 

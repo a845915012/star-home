@@ -36,7 +36,7 @@ public class FurnitureApiServiceImpl implements IFurnitureApiService {
             question.append(request.getViewPrompt());
         }
         taskRequest.setQuestion(question.toString());
-        return taskApiInvokeService.invokeTaskApiBlocking(taskRequest);
+        return taskApiInvokeService.invokeTaskApiBlocking(taskRequest,"图生图");
     }
 
     @Override
@@ -52,7 +52,7 @@ public class FurnitureApiServiceImpl implements IFurnitureApiService {
             question.append(request.getUserPrompt());
         }
         taskRequest.setQuestion(question.toString());
-        return taskApiInvokeService.invokeTaskApi(taskRequest);
+        return taskApiInvokeService.invokeTaskApi(taskRequest,"灵感文案");
     }
 
     @Override

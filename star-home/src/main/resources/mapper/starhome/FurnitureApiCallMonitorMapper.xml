@@ -16,11 +16,6 @@
         <result property="unblockTime" column="unblock_time"/>
         <result property="minuteWindowStart" column="minute_window_start"/>
         <result property="hourWindowStart" column="hour_window_start"/>
-        <result property="createBy" column="create_by"/>
-        <result property="createTime" column="create_time"/>
-        <result property="updateBy" column="update_by"/>
-        <result property="updateTime" column="update_time"/>
-        <result property="remark" column="remark"/>
     </resultMap>
 
     <sql id="selectFurnitureApiCallMonitorVo">
@@ -34,12 +29,7 @@
                block_reason,
                unblock_time,
                minute_window_start,
-               hour_window_start,
-               create_by,
-               create_time,
-               update_by,
-               update_time,
-               remark
+               hour_window_start
         from furniture_api_call_monitor
     </sql>
 
@@ -78,9 +68,6 @@
             <if test="unblockTime != null">unblock_time,</if>
             <if test="minuteWindowStart != null">minute_window_start,</if>
             <if test="hourWindowStart != null">hour_window_start,</if>
-            <if test="createBy != null and createBy != ''">create_by,</if>
-            create_time,
-            <if test="remark != null and remark != ''">remark,</if>
         </trim>
         <trim prefix="values (" suffix=")" suffixOverrides=",">
             <if test="userId != null">#{userId},</if>
@@ -93,9 +80,6 @@
             <if test="unblockTime != null">#{unblockTime},</if>
             <if test="minuteWindowStart != null">#{minuteWindowStart},</if>
             <if test="hourWindowStart != null">#{hourWindowStart},</if>
-            <if test="createBy != null and createBy != ''">#{createBy},</if>
-            sysdate(),
-            <if test="remark != null and remark != ''">#{remark},</if>
         </trim>
     </insert>
 
@@ -112,9 +96,6 @@
             <if test="unblockTime != null">unblock_time = #{unblockTime},</if>
             <if test="minuteWindowStart != null">minute_window_start = #{minuteWindowStart},</if>
             <if test="hourWindowStart != null">hour_window_start = #{hourWindowStart},</if>
-            <if test="updateBy != null and updateBy != ''">update_by = #{updateBy},</if>
-            update_time = sysdate(),
-            <if test="remark != null">remark = #{remark},</if>
         </trim>
         where id = #{id}
     </update>
