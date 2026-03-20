@@ -39,7 +39,9 @@ public class FurnitureApiServiceImpl implements IFurnitureApiService {
         taskRequest.setQuestion(question.toString());
         taskRequest.setModule("图生图");
         taskRequest.setConsumeConstants(ConsumeConstants.IMAGE2IMAGE_FINAL);
-        return taskApiInvokeService.invokeTaskApiBlocking(taskRequest);
+        TaskApiInvokeResponse response = taskApiInvokeService.invokeTaskApiBlocking(taskRequest);
+        response.setApiResult(extractContent(response.getApiResult()));
+        return response;
     }
 
     @Override
@@ -63,5 +65,15 @@ public class FurnitureApiServiceImpl implements IFurnitureApiService {
     @Override
     public SseEmitter createStream() {
         return taskApiInvokeService.createStream(SecurityFrameworkUtils.getLoginUserId());
+    }
+
+    private String extractContent(String input) {
+        int start = input.indexOf('(');
+        int end = input.indexOf(')', start);
+        if (start != -1 && end != -1 && end > start) {
+            return input.substring(start + 1, end);
+        } else {
+            return ""; // 或者抛出异常，根据需求处理
+        }
     }
 }
