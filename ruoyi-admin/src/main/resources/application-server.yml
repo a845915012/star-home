@@ -1,0 +1,10 @@
+# 服务器环境配置
+server:
+  port: 8080
+  servlet:
+    context-path: /
+
+# 服务器文件上传路径
+ruoyi:
+  profile: /work/star-home/upload
+

@@ -2,6 +2,7 @@ package com.ruoyi.starhome.service.impl;
 
 import com.ruoyi.common.core.redis.RedisCache;
 import com.ruoyi.starhome.service.IApiCallMonitorCacheService;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
@@ -12,6 +13,7 @@ import java.util.Date;
 import java.util.concurrent.TimeUnit;
 
 @Service
+@Slf4j
 public class ApiCallMonitorCacheServiceImpl implements IApiCallMonitorCacheService {
 
     public static final String MONITOR_USER_SET_KEY = "starhome:monitor:user:set";
@@ -37,7 +39,8 @@ public class ApiCallMonitorCacheServiceImpl implements IApiCallMonitorCacheServi
         String userMonitorKey = MONITOR_USER_KEY_PREFIX + userId;
         String minuteBucketKey = MONITOR_MINUTE_BUCKET_PREFIX + nowLdt.format(MINUTE_FMT);
         String hourBucketKey = MONITOR_HOUR_BUCKET_PREFIX + nowLdt.format(HOUR_FMT);
-
+        log.info("minuteBucketKey:{}",minuteBucketKey);
+        log.info("hourBucketKey:{}",hourBucketKey);
         // 活跃用户集合
         redisCache.redisTemplate.opsForSet().add(MONITOR_USER_SET_KEY, String.valueOf(userId));
 

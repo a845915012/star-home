@@ -66,8 +66,8 @@ public class ApiCallMonitorFlushTask {
             }
 
             // 落库成功后清零当前时间桶该用户计数
-            redisCache.setCacheMapValue(minuteBucketKey, userIdStr, 0L);
-            redisCache.setCacheMapValue(hourBucketKey, userIdStr, 0L);
+            redisCache.setCacheMapValue(minuteBucketKey, userIdStr, 0);
+            redisCache.setCacheMapValue(hourBucketKey, userIdStr, 0);
         }
     }
 

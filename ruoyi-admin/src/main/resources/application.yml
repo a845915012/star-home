@@ -6,8 +6,6 @@ ruoyi:
   version: 3.9.1
   # 版权年份
   copyrightYear: 2026
-  # 文件路径 示例（ Windows配置D:/ruoyi/uploadPath，Linux配置 /home/ruoyi/uploadPath）
-  profile: /work/star-home/upload
   # 获取ip地址开关
   addressEnabled: false
   # 验证码类型 math 数字计算 char 字符验证
@@ -52,7 +50,8 @@ spring:
     # 国际化资源文件路径
     basename: i18n/messages
   profiles:
-    active: druid
+    # 默认启用本地环境 + 数据源配置
+    active: local,druid
   # 文件上传
   servlet:
     multipart:

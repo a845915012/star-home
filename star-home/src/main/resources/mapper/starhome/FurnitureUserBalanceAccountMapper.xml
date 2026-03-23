@@ -12,6 +12,9 @@
         <result property="createTime" column="create_time"/>
         <result property="updateTime" column="update_time"/>
         <result property="username" column="user_name"/>
+        <result property="phone" column="phonenumber"/>
+        <result property="email" column="email"/>
+        <result property="status" column="status"/>
     </resultMap>
 
     <sql id="selectFurnitureUserBalanceAccountVo">
@@ -21,7 +24,10 @@
                fua.use_balance,
                fua.create_time,
                fua.update_time,
-               su.user_name
+               su.user_name,
+               su.phonenumber,
+               su.email,
+               su.status
         from furniture_user_balance_account fua
                  left join sys_user su on su.user_id = fua.user_id
     </sql>

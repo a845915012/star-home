@@ -39,8 +39,8 @@ public class FurnitureApiServiceImpl implements IFurnitureApiService {
         taskRequest.setQuestion(question.toString());
         taskRequest.setModule("图生图");
         taskRequest.setConsumeConstants(ConsumeConstants.IMAGE2IMAGE_FINAL);
-        TaskApiInvokeResponse response = taskApiInvokeService.invokeTaskApiBlocking(taskRequest);
-        response.setApiResult(extractContent(response.getApiResult()));
+        TaskApiInvokeResponse response = taskApiInvokeService.invokeGeminiImageApi(taskRequest);
+        response.setApiResult(response.getApiResult());
         return response;
     }
 

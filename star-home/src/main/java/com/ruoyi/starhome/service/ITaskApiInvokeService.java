@@ -10,4 +10,6 @@ public interface ITaskApiInvokeService {
     TaskApiInvokeResponse invokeTaskApiBlocking(TaskApiInvokeRequest request);
 
     SseEmitter createStream(Long userId);
+
+    TaskApiInvokeResponse invokeGeminiImageApi(TaskApiInvokeRequest request);
 }

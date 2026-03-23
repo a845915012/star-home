@@ -28,6 +28,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
+import org.springframework.web.servlet.support.ServletUriComponentsBuilder;
 
 import java.io.File;
 import java.io.IOException;
@@ -35,6 +36,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.math.BigDecimal;
 import java.util.ArrayList;
+import java.util.Base64;
 import java.util.Date;
 import java.util.List;
 import java.util.Map;
@@ -105,6 +107,34 @@ public class TaskApiInvokeServiceImpl implements ITaskApiInvokeService {
         return invokeTaskApi(request);
     }
 
+    /**
+     * Gemini 图生图调用（inline_data方式），入参使用 filePaths + question。
+     * 功能与 invokeTaskApi 保持一致：校验余额、调用AI、扣减余额、记录调用监控。
+     */
+    @Transactional(rollbackFor = Exception.class)
+    public TaskApiInvokeResponse invokeGeminiImageApi(TaskApiInvokeRequest request) {
+        if (request == null || request.getUserId() == null || request.getApiNumber() == null) {
+            throw new ServiceException("userId和apiNumber不能为空");
+        }
+        if (request.getFilePaths() == null || request.getFilePaths().isEmpty()) {
+            throw new ServiceException("文件地址不能为空");
+        }
+
+        validateBalanceEnough(request.getUserId());
+
+        AiApiCallResult callResult = callGeminiImageApiByApiNumber(request);
+
+        furnitureUserBalanceAccountService.consume(request.getUserId(), request.getConsumeConstants().getPrice());
+        apiCallMonitorCacheService.recordCall(request.getUserId());
+
+        TaskApiInvokeResponse response = new TaskApiInvokeResponse();
+        response.setUserId(request.getUserId());
+        response.setApiNumber(request.getApiNumber());
+        response.setCallCost(callResult.getCallCost());
+        response.setApiResult(callResult.getApiResult());
+        return response;
+    }
+
     @Override
     public SseEmitter createStream(Long userId) {
         if (userId == null) {
@@ -116,6 +146,182 @@ public class TaskApiInvokeServiceImpl implements ITaskApiInvokeService {
         emitter.onTimeout(() -> emitterMap.remove(userId));
         emitter.onError(ex -> emitterMap.remove(userId));
         return emitter;
+    }
+
+    private AiApiCallResult callGeminiImageApiByApiNumber(TaskApiInvokeRequest request) {
+        FurnitureNumberApiPoolDO apiPool = furnitureNumberApiPoolMapper.selectOne(
+                new LambdaQueryWrapper<FurnitureNumberApiPoolDO>()
+                        .eq(FurnitureNumberApiPoolDO::getNumber, String.valueOf(request.getApiNumber()))
+                        .last("limit 1")
+        );
+
+        if (apiPool == null) {
+            throw new ServiceException("未找到apiNumber对应的接口配置: " + request.getApiNumber());
+        }
+
+        List<String> filePaths = request.getFilePaths();
+        if (filePaths == null || filePaths.isEmpty()) {
+            throw new ServiceException("文件地址不能为空");
+        }
+
+        AiApiCallResult result = new AiApiCallResult();
+        result.setCallCost(BigDecimal.ZERO);
+        try {
+            String apiResult = generateGeminiImageWithInlineData(request.getQuestion(), filePaths, apiPool.getApiUrl(), apiPool.getApiKey(), request.getModule(), request.getUserId());
+            result.setApiResult(apiResult);
+            return result;
+        } catch (IOException e) {
+            log.error("调用Gemini图生图接口异常:{}", e.getMessage());
+            throw new ServiceException("调用Gemini图生图接口异常");
+        }
+    }
+
+    private String generateGeminiImageWithInlineData(String question, List<String> filePaths, String url, String apiKey, String module, Long userId) throws IOException {
+        ObjectNode payload = buildGeminiInlinePayload(question, filePaths);
+        Request request = buildGeminiGenerateContentRequest(url, apiKey, payload);
+        return executeGeminiBlocking(request, userId, module);
+    }
+
+    private ObjectNode buildGeminiInlinePayload(String question, List<String> filePaths) throws IOException {
+        ObjectNode root = mapper.createObjectNode();
+        ArrayNode contents = mapper.createArrayNode();
+
+        ObjectNode userContent = mapper.createObjectNode();
+        userContent.put("role", "user");
+        ArrayNode parts = mapper.createArrayNode();
+
+        ObjectNode textPart = mapper.createObjectNode();
+        textPart.put("text", question == null ? "" : question);
+        parts.add(textPart);
+
+        for (String filePath : filePaths) {
+            File file = resolveProfileFile(filePath);
+            byte[] bytes = readFileBytes(file);
+            String mimeType = resolveMimeType(file);
+
+            ObjectNode inlineData = mapper.createObjectNode();
+            inlineData.put("mime_type", mimeType);
+            inlineData.put("data", Base64.getEncoder().encodeToString(bytes));
+
+            ObjectNode filePart = mapper.createObjectNode();
+            filePart.set("inline_data", inlineData);
+            parts.add(filePart);
+        }
+
+        userContent.set("parts", parts);
+        contents.add(userContent);
+
+        ObjectNode generationConfig = mapper.createObjectNode();
+        ArrayNode responseModalities = mapper.createArrayNode();
+        responseModalities.add("TEXT");
+        responseModalities.add("IMAGE");
+        generationConfig.set("responseModalities", responseModalities);
+
+        ObjectNode imageConfig = mapper.createObjectNode();
+        imageConfig.put("aspectRatio", "9:16");
+        imageConfig.put("imageSize", "2K");
+        generationConfig.set("imageConfig", imageConfig);
+
+        root.set("contents", contents);
+        root.set("generationConfig", generationConfig);
+        return root;
+    }
+
+    private Request buildGeminiGenerateContentRequest(String url, String apiKey, ObjectNode payload) throws IOException {
+        String jsonBody = mapper.writeValueAsString(payload);
+        RequestBody body = RequestBody.create(
+                MediaType.parse("application/json; charset=utf-8"),
+                jsonBody
+        );
+        String endpoint = (url == null ? "" : url.trim()) + "/v1beta/models/gemini-3-pro-image-preview:generateContent?key=";
+        return new Request.Builder()
+                .url(endpoint)
+                .header("Authorization", "Bearer " + apiKey)
+                .header("Content-Type", "application/json")
+                .post(body)
+                .build();
+    }
+
+    private String executeGeminiBlocking(Request request, Long userId, String module) throws IOException {
+        try (Response response = client.newCall(request).execute()) {
+            if (!response.isSuccessful()) {
+                ResponseBody errorBody = response.body();
+                throw new IOException("Gemini图生图调用失败: " + response.code() + " - " + (errorBody == null ? "" : errorBody.string()));
+            }
+            ResponseBody responseBody = response.body();
+            if (responseBody == null) {
+                throw new IOException("Gemini图生图调用失败: 响应体为空");
+            }
+            String raw = responseBody.string();
+            JsonNode root = mapper.readTree(raw);
+
+            JsonNode usageMetadata = root.path("usageMetadata");
+            JsonNode usageNode = toUsageNodeFromGeminiUsageMetadata(usageMetadata);
+            recordUsageAsync(userId, module, root.path("modelVersion").asText("gemini_3_pro_image_preview"), usageNode);
+
+            return saveGeminiBinaryAndBuildAccessUrl(root);
+        }
+    }
+
+    private JsonNode toUsageNodeFromGeminiUsageMetadata(JsonNode usageMetadata) {
+        ObjectNode usageNode = mapper.createObjectNode();
+        usageNode.put("prompt_tokens", usageMetadata.path("promptTokenCount").asText("0"));
+        usageNode.put("completion_tokens", usageMetadata.path("candidatesTokenCount").asText("0"));
+        usageNode.put("total_tokens", usageMetadata.path("totalTokenCount").asText("0"));
+        usageNode.put("total_price", "0.33");
+        return usageNode;
+    }
+
+    private String saveGeminiBinaryAndBuildAccessUrl(JsonNode root) throws IOException {
+        JsonNode binaryNode = root.path("candidates").path(0).path("content").path("parts").path(0).path("inlineData").path("data");
+        if (binaryNode.isMissingNode() || binaryNode.isNull() || binaryNode.asText().isBlank()) {
+            binaryNode = root.path("candidates").path(0).path("content").path("parts").path(0).path("thoughtSignature");
+        }
+        String base64Data = binaryNode.asText(null);
+        if (base64Data == null || base64Data.isBlank()) {
+            throw new IOException("Gemini返回结果中未找到二进制数据");
+        }
+
+        String mimeType = root.path("candidates").path(0).path("content").path("parts").path(0).path("inlineData").path("mimeType").asText("image/png");
+        String ext = resolveImageExtByMimeType(mimeType);
+
+        File generateDir = new File(RuoYiConfig.getProfile(), "generate");
+        if (!generateDir.exists() && !generateDir.mkdirs()) {
+            throw new IOException("创建generate目录失败: " + generateDir.getAbsolutePath());
+        }
+
+        String fileName = "gemini_" + System.currentTimeMillis() + "_" + java.util.UUID.randomUUID().toString().replace("-", "") + "." + ext;
+        File targetFile = new File(generateDir, fileName);
+        byte[] imageBytes = Base64.getDecoder().decode(base64Data);
+        Files.write(targetFile.toPath(), imageBytes);
+
+        return buildPublicProfileUrl("/profile/generate/" + fileName);
+    }
+
+    private String buildPublicProfileUrl(String profilePath) {
+        String normalizedPath = profilePath == null ? "" : profilePath;
+        String baseUrl = ServletUriComponentsBuilder.fromCurrentContextPath().build().toUriString();
+        if (normalizedPath.startsWith("/")) {
+            return baseUrl + normalizedPath;
+        }
+        return baseUrl + "/" + normalizedPath;
+    }
+
+    private String resolveImageExtByMimeType(String mimeType) {
+        if (mimeType == null || mimeType.isBlank()) {
+            return "png";
+        }
+        String normalized = mimeType.toLowerCase();
+        if (normalized.contains("jpeg") || normalized.contains("jpg")) {
+            return "jpg";
+        }
+        if (normalized.contains("webp")) {
+            return "webp";
+        }
+        if (normalized.contains("gif")) {
+            return "gif";
+        }
+        return "png";
     }
 
     /**

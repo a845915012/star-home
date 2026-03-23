@@ -1,0 +1,9 @@
+# 本地环境配置
+server:
+  port: 8080
+  servlet:
+    context-path: /
+
+# 本地文件上传路径
+ruoyi:
+  profile: E:/star-home/uploadPath
