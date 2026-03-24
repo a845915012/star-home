@@ -36,7 +36,6 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.math.BigDecimal;
 import java.util.ArrayList;
-import java.util.Base64;
 import java.util.Date;
 import java.util.List;
 import java.util.Map;
@@ -167,144 +166,151 @@ public class TaskApiInvokeServiceImpl implements ITaskApiInvokeService {
         AiApiCallResult result = new AiApiCallResult();
         result.setCallCost(BigDecimal.ZERO);
         try {
-            String apiResult = generateGeminiImageWithInlineData(request.getQuestion(), filePaths, apiPool.getApiUrl(), apiPool.getApiKey(), request.getModule(), request.getUserId());
+            String apiResult = generateImageByChatCompletions(request.getQuestion(), filePaths, apiPool.getApiUrl(), apiPool.getApiKey(), request.getModule(), request.getUserId());
             result.setApiResult(apiResult);
             return result;
-        } catch (IOException e) {
-            log.error("调用Gemini图生图接口异常:{}", e.getMessage());
-            throw new ServiceException("调用Gemini图生图接口异常");
+        } catch (Exception e) {
+            log.error("调用图生图接口异常:{}", e.getMessage());
+            throw new ServiceException("调用图生图接口异常");
         }
     }
 
-    private String generateGeminiImageWithInlineData(String question, List<String> filePaths, String url, String apiKey, String module, Long userId) throws IOException {
-        ObjectNode payload = buildGeminiInlinePayload(question, filePaths);
-        Request request = buildGeminiGenerateContentRequest(url, apiKey, payload);
-        return executeGeminiBlocking(request, userId, module);
+    private String generateImageByChatCompletions(String question, List<String> filePaths, String url, String apiKey, String module, Long userId) throws IOException {
+        ObjectNode payload = buildChatCompletionsImagePayload(question, filePaths);
+        Request request = buildChatCompletionsImageRequest(url, apiKey, payload);
+        return executeChatCompletionsImageBlocking(request, userId, module);
     }
 
-    private ObjectNode buildGeminiInlinePayload(String question, List<String> filePaths) throws IOException {
+    private ObjectNode buildChatCompletionsImagePayload(String question, List<String> filePaths) {
         ObjectNode root = mapper.createObjectNode();
-        ArrayNode contents = mapper.createArrayNode();
+        root.put("stream", false);
+        root.put("model", "gemini-3-pro-image-preview");
 
-        ObjectNode userContent = mapper.createObjectNode();
-        userContent.put("role", "user");
-        ArrayNode parts = mapper.createArrayNode();
+        ArrayNode messages = mapper.createArrayNode();
+        ObjectNode userMessage = mapper.createObjectNode();
+        userMessage.put("role", "user");
 
+        ArrayNode content = mapper.createArrayNode();
         ObjectNode textPart = mapper.createObjectNode();
+        textPart.put("type", "text");
         textPart.put("text", question == null ? "" : question);
-        parts.add(textPart);
+        content.add(textPart);
 
         for (String filePath : filePaths) {
-            File file = resolveProfileFile(filePath);
-            byte[] bytes = readFileBytes(file);
-            String mimeType = resolveMimeType(file);
+            ObjectNode imageUrl = mapper.createObjectNode();
+            imageUrl.put("url", toPublicFileUrl(filePath));
 
-            ObjectNode inlineData = mapper.createObjectNode();
-            inlineData.put("mime_type", mimeType);
-            inlineData.put("data", Base64.getEncoder().encodeToString(bytes));
-
-            ObjectNode filePart = mapper.createObjectNode();
-            filePart.set("inline_data", inlineData);
-            parts.add(filePart);
+            ObjectNode imagePart = mapper.createObjectNode();
+            imagePart.put("type", "image_url");
+            imagePart.set("image_url", imageUrl);
+            content.add(imagePart);
         }
 
-        userContent.set("parts", parts);
-        contents.add(userContent);
-
-        ObjectNode generationConfig = mapper.createObjectNode();
-        ArrayNode responseModalities = mapper.createArrayNode();
-        responseModalities.add("TEXT");
-        responseModalities.add("IMAGE");
-        generationConfig.set("responseModalities", responseModalities);
-
-        ObjectNode imageConfig = mapper.createObjectNode();
-        imageConfig.put("aspectRatio", "9:16");
-        imageConfig.put("imageSize", "2K");
-        generationConfig.set("imageConfig", imageConfig);
-
-        root.set("contents", contents);
-        root.set("generationConfig", generationConfig);
+        userMessage.set("content", content);
+        messages.add(userMessage);
+        root.set("messages", messages);
         return root;
     }
 
-    private Request buildGeminiGenerateContentRequest(String url, String apiKey, ObjectNode payload) throws IOException {
+    private Request buildChatCompletionsImageRequest(String url, String apiKey, ObjectNode payload) throws IOException {
         String jsonBody = mapper.writeValueAsString(payload);
         RequestBody body = RequestBody.create(
                 MediaType.parse("application/json; charset=utf-8"),
                 jsonBody
         );
-        String endpoint = (url == null ? "" : url.trim()) + "/v1beta/models/gemini-3-pro-image-preview:generateContent?key=";
+        String endpoint = trimEndSlash(url) + "/v1/chat/completions";
         return new Request.Builder()
                 .url(endpoint)
-                .header("Authorization", "Bearer " + apiKey)
-                .header("Content-Type", "application/json")
-                .post(body)
+                .method("POST", body)
+                .addHeader("Accept", "application/json")
+                .addHeader("Authorization", "Bearer " + apiKey)
+                .addHeader("Content-Type", "application/json")
                 .build();
     }
 
-    private String executeGeminiBlocking(Request request, Long userId, String module) throws IOException {
+    private String executeChatCompletionsImageBlocking(Request request, Long userId, String module) throws IOException {
         try (Response response = client.newCall(request).execute()) {
             if (!response.isSuccessful()) {
                 ResponseBody errorBody = response.body();
-                throw new IOException("Gemini图生图调用失败: " + response.code() + " - " + (errorBody == null ? "" : errorBody.string()));
+                throw new IOException("图生图调用失败: " + response.code() + " - " + (errorBody == null ? "" : errorBody.string()));
             }
             ResponseBody responseBody = response.body();
             if (responseBody == null) {
-                throw new IOException("Gemini图生图调用失败: 响应体为空");
+                throw new IOException("图生图调用失败: 响应体为空");
             }
             String raw = responseBody.string();
+            log.info("raw:{}",raw);
             JsonNode root = mapper.readTree(raw);
 
-            JsonNode usageMetadata = root.path("usageMetadata");
-            JsonNode usageNode = toUsageNodeFromGeminiUsageMetadata(usageMetadata);
-            recordUsageAsync(userId, module, root.path("modelVersion").asText("gemini_3_pro_image_preview"), usageNode);
+            JsonNode usageNode = toUsageNodeFromChatCompletions(root.path("usage"));
+            recordUsageAsync(userId, module, root.path("model").asText("gemini-3-pro-image-preview"), usageNode);
 
-            return saveGeminiBinaryAndBuildAccessUrl(root);
+            return extractChatCompletionsImageResult(root, raw);
         }
     }
 
-    private JsonNode toUsageNodeFromGeminiUsageMetadata(JsonNode usageMetadata) {
+    private JsonNode toUsageNodeFromChatCompletions(JsonNode usage) {
         ObjectNode usageNode = mapper.createObjectNode();
-        usageNode.put("prompt_tokens", usageMetadata.path("promptTokenCount").asText("0"));
-        usageNode.put("completion_tokens", usageMetadata.path("candidatesTokenCount").asText("0"));
-        usageNode.put("total_tokens", usageMetadata.path("totalTokenCount").asText("0"));
-        usageNode.put("total_price", "0.33");
+        usageNode.put("prompt_tokens", usage.path("prompt_tokens").asText("0"));
+        usageNode.put("completion_tokens", usage.path("completion_tokens").asText("0"));
+        usageNode.put("total_tokens", usage.path("total_tokens").asText("0"));
+        usageNode.put("total_price", "0.2025");
         return usageNode;
     }
 
-    private String saveGeminiBinaryAndBuildAccessUrl(JsonNode root) throws IOException {
-        JsonNode binaryNode = root.path("candidates").path(0).path("content").path("parts").path(0).path("inlineData").path("data");
-        if (binaryNode.isMissingNode() || binaryNode.isNull() || binaryNode.asText().isBlank()) {
-            binaryNode = root.path("candidates").path(0).path("content").path("parts").path(0).path("thoughtSignature");
+    private String extractChatCompletionsImageResult(JsonNode root, String raw) {
+        JsonNode contentNode = root.path("choices").path(0).path("message").path("content");
+        if (contentNode.isTextual()) {
+            return contentNode.asText();
         }
-        String base64Data = binaryNode.asText(null);
-        if (base64Data == null || base64Data.isBlank()) {
-            throw new IOException("Gemini返回结果中未找到二进制数据");
+        if (contentNode.isArray()) {
+            StringBuilder sb = new StringBuilder();
+            for (JsonNode item : contentNode) {
+                if (item.path("type").asText().equals("text")) {
+                    sb.append(item.path("text").asText(""));
+                }
+            }
+            if (!sb.isEmpty()) {
+                return sb.toString();
+            }
         }
-
-        String mimeType = root.path("candidates").path(0).path("content").path("parts").path(0).path("inlineData").path("mimeType").asText("image/png");
-        String ext = resolveImageExtByMimeType(mimeType);
-
-        File generateDir = new File(RuoYiConfig.getProfile(), "generate");
-        if (!generateDir.exists() && !generateDir.mkdirs()) {
-            throw new IOException("创建generate目录失败: " + generateDir.getAbsolutePath());
-        }
-
-        String fileName = "gemini_" + System.currentTimeMillis() + "_" + java.util.UUID.randomUUID().toString().replace("-", "") + "." + ext;
-        File targetFile = new File(generateDir, fileName);
-        byte[] imageBytes = Base64.getDecoder().decode(base64Data);
-        Files.write(targetFile.toPath(), imageBytes);
-
-        return buildPublicProfileUrl("/profile/generate/" + fileName);
+        return raw;
     }
 
     private String buildPublicProfileUrl(String profilePath) {
         String normalizedPath = profilePath == null ? "" : profilePath;
         String baseUrl = ServletUriComponentsBuilder.fromCurrentContextPath().build().toUriString();
         if (normalizedPath.startsWith("/")) {
+            log.info("filePath:{}",baseUrl + normalizedPath);
             return baseUrl + normalizedPath;
         }
+        log.info("filePath:{}",baseUrl + "/" + normalizedPath);
         return baseUrl + "/" + normalizedPath;
+    }
+
+    private String toPublicFileUrl(String filePath) {
+        File file = resolveProfileFile(filePath);
+        String profileRoot = new File(RuoYiConfig.getProfile()).getAbsolutePath().replace("\\", "/");
+        String absolutePath = file.getAbsolutePath().replace("\\", "/");
+        if (!absolutePath.startsWith(profileRoot)) {
+            throw new ServiceException("文件路径不在profile目录下: " + filePath);
+        }
+        String relative = absolutePath.substring(profileRoot.length());
+        if (!relative.startsWith("/")) {
+            relative = "/" + relative;
+        }
+        return buildPublicProfileUrl("/profile" + relative);
+    }
+
+    private String trimEndSlash(String url) {
+        if (url == null) {
+            return "";
+        }
+        String trimmed = url.trim();
+        while (trimmed.endsWith("/")) {
+            trimmed = trimmed.substring(0, trimmed.length() - 1);
+        }
+        return trimmed;
     }
 
     private String resolveImageExtByMimeType(String mimeType) {
