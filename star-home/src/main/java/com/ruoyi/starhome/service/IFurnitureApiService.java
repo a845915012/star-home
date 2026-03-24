@@ -7,8 +7,10 @@ import com.ruoyi.starhome.domain.dto.TaskApiInvokeResponse;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
+import java.io.IOException;
+
 public interface IFurnitureApiService {
-    TaskApiInvokeResponse imageGenerateScene(GenerateSceneRequest request);
+    TaskApiInvokeResponse imageGenerateScene(GenerateSceneRequest request) throws IOException;
     TaskApiInvokeResponse copyGenerate(CopyGenerateRequest request);
     SseEmitter createStream();
 }

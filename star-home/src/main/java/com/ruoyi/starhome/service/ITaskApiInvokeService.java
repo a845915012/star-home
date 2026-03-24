@@ -4,6 +4,8 @@ import com.ruoyi.starhome.domain.dto.TaskApiInvokeRequest;
 import com.ruoyi.starhome.domain.dto.TaskApiInvokeResponse;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
+import java.io.IOException;
+
 public interface ITaskApiInvokeService {
     TaskApiInvokeResponse invokeTaskApi(TaskApiInvokeRequest request);
 
@@ -11,5 +13,5 @@ public interface ITaskApiInvokeService {
 
     SseEmitter createStream(Long userId);
 
-    TaskApiInvokeResponse invokeGeminiImageApi(TaskApiInvokeRequest request);
+    TaskApiInvokeResponse invokeGeminiImageApi(TaskApiInvokeRequest request) throws IOException;
 }

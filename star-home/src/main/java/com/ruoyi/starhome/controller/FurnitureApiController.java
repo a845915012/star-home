@@ -14,6 +14,8 @@ import org.springframework.http.MediaType;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
+import java.io.IOException;
+
 import static com.ruoyi.common.core.domain.AjaxResult.success;
 
 @Tag(name = "星链家-AI服务调用接口")
@@ -31,7 +33,7 @@ public class FurnitureApiController {
     )
     @Log(title = "场景图片生成", businessType = BusinessType.UPDATE)
     @PostMapping(value = "/image/generate-scene", consumes = MediaType.APPLICATION_JSON_VALUE)
-    public AjaxResult imageGenerateScene(@RequestBody GenerateSceneRequest request) {
+    public AjaxResult imageGenerateScene(@RequestBody GenerateSceneRequest request) throws IOException {
         return success(furnitureApiService.imageGenerateScene(request));
     }
 

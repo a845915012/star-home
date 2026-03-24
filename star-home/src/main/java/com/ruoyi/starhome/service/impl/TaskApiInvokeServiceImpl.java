@@ -28,7 +28,6 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
-import org.springframework.web.servlet.support.ServletUriComponentsBuilder;
 
 import java.io.File;
 import java.io.IOException;
@@ -111,7 +110,7 @@ public class TaskApiInvokeServiceImpl implements ITaskApiInvokeService {
      * 功能与 invokeTaskApi 保持一致：校验余额、调用AI、扣减余额、记录调用监控。
      */
     @Transactional(rollbackFor = Exception.class)
-    public TaskApiInvokeResponse invokeGeminiImageApi(TaskApiInvokeRequest request) {
+    public TaskApiInvokeResponse invokeGeminiImageApi(TaskApiInvokeRequest request) throws IOException {
         if (request == null || request.getUserId() == null || request.getApiNumber() == null) {
             throw new ServiceException("userId和apiNumber不能为空");
         }
@@ -147,7 +146,7 @@ public class TaskApiInvokeServiceImpl implements ITaskApiInvokeService {
         return emitter;
     }
 
-    private AiApiCallResult callGeminiImageApiByApiNumber(TaskApiInvokeRequest request) {
+    private AiApiCallResult callGeminiImageApiByApiNumber(TaskApiInvokeRequest request) throws IOException {
         FurnitureNumberApiPoolDO apiPool = furnitureNumberApiPoolMapper.selectOne(
                 new LambdaQueryWrapper<FurnitureNumberApiPoolDO>()
                         .eq(FurnitureNumberApiPoolDO::getNumber, String.valueOf(request.getApiNumber()))
@@ -165,14 +164,9 @@ public class TaskApiInvokeServiceImpl implements ITaskApiInvokeService {
 
         AiApiCallResult result = new AiApiCallResult();
         result.setCallCost(BigDecimal.ZERO);
-        try {
-            String apiResult = generateImageByChatCompletions(request.getQuestion(), filePaths, apiPool.getApiUrl(), apiPool.getApiKey(), request.getModule(), request.getUserId());
-            result.setApiResult(apiResult);
-            return result;
-        } catch (Exception e) {
-            log.error("调用图生图接口异常:{}", e.getMessage());
-            throw new ServiceException("调用图生图接口异常");
-        }
+        String apiResult = generateImageByChatCompletions(request.getQuestion(), filePaths, apiPool.getApiUrl(), apiPool.getApiKey(), request.getModule(), request.getUserId());
+        result.setApiResult(apiResult);
+        return result;
     }
 
     private String generateImageByChatCompletions(String question, List<String> filePaths, String url, String apiKey, String module, Long userId) throws IOException {
@@ -199,7 +193,7 @@ public class TaskApiInvokeServiceImpl implements ITaskApiInvokeService {
         for (String filePath : filePaths) {
             ObjectNode imageUrl = mapper.createObjectNode();
             imageUrl.put("url", toPublicFileUrl(filePath));
-
+            log.info("imageUrl:{}", imageUrl.get("url").asText());
             ObjectNode imagePart = mapper.createObjectNode();
             imagePart.put("type", "image_url");
             imagePart.set("image_url", imageUrl);
@@ -239,11 +233,12 @@ public class TaskApiInvokeServiceImpl implements ITaskApiInvokeService {
                 throw new IOException("图生图调用失败: 响应体为空");
             }
             String raw = responseBody.string();
-            log.info("raw:{}",raw);
+            log.info("raw:{}", raw);
             JsonNode root = mapper.readTree(raw);
 
             JsonNode usageNode = toUsageNodeFromChatCompletions(root.path("usage"));
-            recordUsageAsync(userId, module, root.path("model").asText("gemini-3-pro-image-preview"), usageNode);
+            String model = root.path("model").asText("gemini-3-pro-image-preview");
+            recordUsageAsync(userId, module, model, usageNode);
 
             return extractChatCompletionsImageResult(root, raw);
         }
@@ -254,39 +249,58 @@ public class TaskApiInvokeServiceImpl implements ITaskApiInvokeService {
         usageNode.put("prompt_tokens", usage.path("prompt_tokens").asText("0"));
         usageNode.put("completion_tokens", usage.path("completion_tokens").asText("0"));
         usageNode.put("total_tokens", usage.path("total_tokens").asText("0"));
+        // 按新规则固定金额
         usageNode.put("total_price", "0.2025");
         return usageNode;
     }
 
     private String extractChatCompletionsImageResult(JsonNode root, String raw) {
-        JsonNode contentNode = root.path("choices").path(0).path("message").path("content");
-        if (contentNode.isTextual()) {
-            return contentNode.asText();
+        JsonNode choicesNode = root.path("choices");
+        if (!choicesNode.isArray() || choicesNode.isEmpty()) {
+            return raw;
         }
+
+        JsonNode contentNode = choicesNode.path(0).path("message").path("content");
+        if (contentNode.isTextual()) {
+            String content = contentNode.asText("");
+            String imageUrl = extractMarkdownImageUrl(content);
+            return imageUrl != null ? imageUrl : content;
+        }
+
         if (contentNode.isArray()) {
             StringBuilder sb = new StringBuilder();
             for (JsonNode item : contentNode) {
-                if (item.path("type").asText().equals("text")) {
+                if ("text".equals(item.path("type").asText())) {
                     sb.append(item.path("text").asText(""));
                 }
             }
             if (!sb.isEmpty()) {
-                return sb.toString();
+                String content = sb.toString();
+                String imageUrl = extractMarkdownImageUrl(content);
+                return imageUrl != null ? imageUrl : content;
             }
         }
+
         return raw;
     }
 
-    private String buildPublicProfileUrl(String profilePath) {
-        String normalizedPath = profilePath == null ? "" : profilePath;
-        String baseUrl = ServletUriComponentsBuilder.fromCurrentContextPath().build().toUriString();
-        if (normalizedPath.startsWith("/")) {
-            log.info("filePath:{}",baseUrl + normalizedPath);
-            return baseUrl + normalizedPath;
+    private String extractMarkdownImageUrl(String text) {
+        if (text == null || text.isBlank()) {
+            return null;
         }
-        log.info("filePath:{}",baseUrl + "/" + normalizedPath);
-        return baseUrl + "/" + normalizedPath;
+        int prefix = text.indexOf("![");
+        if (prefix < 0) {
+            return null;
+        }
+        int leftParen = text.indexOf('(', prefix);
+        int rightParen = text.indexOf(')', leftParen + 1);
+        if (leftParen < 0 || rightParen < 0 || rightParen <= leftParen + 1) {
+            return null;
+        }
+        return text.substring(leftParen + 1, rightParen).trim();
     }
+
+    private static final String PUBLIC_FILE_BASE_URL = "http://47.112.126.153";
 
     private String toPublicFileUrl(String filePath) {
         File file = resolveProfileFile(filePath);
@@ -299,7 +313,7 @@ public class TaskApiInvokeServiceImpl implements ITaskApiInvokeService {
         if (!relative.startsWith("/")) {
             relative = "/" + relative;
         }
-        return buildPublicProfileUrl("/profile" + relative);
+        return PUBLIC_FILE_BASE_URL + relative;
     }
 
     private String trimEndSlash(String url) {

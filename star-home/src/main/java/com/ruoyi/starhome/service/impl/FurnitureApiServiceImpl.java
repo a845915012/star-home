@@ -14,6 +14,8 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
+import java.io.IOException;
+
 @Service
 public class FurnitureApiServiceImpl implements IFurnitureApiService {
 
@@ -22,7 +24,7 @@ public class FurnitureApiServiceImpl implements IFurnitureApiService {
 
 
     @Override
-    public TaskApiInvokeResponse imageGenerateScene(GenerateSceneRequest request) {
+    public TaskApiInvokeResponse imageGenerateScene(GenerateSceneRequest request) throws IOException {
         TaskApiInvokeRequest taskRequest = new TaskApiInvokeRequest();
         taskRequest.setUserId(SecurityFrameworkUtils.getLoginUserId());
         taskRequest.setApiNumber(request.getApiNumber());
