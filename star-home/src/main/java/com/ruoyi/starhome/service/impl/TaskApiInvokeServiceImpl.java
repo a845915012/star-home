@@ -39,6 +39,7 @@ import java.util.Date;
 import java.util.List;
 import java.util.Map;
 import java.util.TimerTask;
+import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
 
@@ -803,6 +804,12 @@ public class TaskApiInvokeServiceImpl implements ITaskApiInvokeService {
             throw new ServiceException("文件地址不能为空");
         }
         String normalized = filePath.trim().replace("\\", "/");
+
+        // 兼容外部图片链接：先下载到 profile/download 目录，再按既有流程处理
+        if (isExternalHttpUrl(normalized)) {
+            return downloadExternalImageToProfile(normalized);
+        }
+
         if (!normalized.startsWith("/profile/")) {
             throw new ServiceException("文件地址格式不正确: " + filePath);
         }
@@ -812,6 +819,49 @@ public class TaskApiInvokeServiceImpl implements ITaskApiInvokeService {
             throw new ServiceException("文件不存在: " + filePath);
         }
         return file;
+    }
+
+    private boolean isExternalHttpUrl(String path) {
+        if (path == null) {
+            return false;
+        }
+        String lower = path.toLowerCase();
+        return lower.startsWith("http://") || lower.startsWith("https://");
+    }
+
+    private File downloadExternalImageToProfile(String imageUrl) {
+        File downloadDir = new File(RuoYiConfig.getProfile(), "download");
+        if (!downloadDir.exists() && !downloadDir.mkdirs()) {
+            throw new ServiceException("创建下载目录失败: " + downloadDir.getAbsolutePath());
+        }
+
+        Request request = new Request.Builder()
+                .url(imageUrl)
+                .get()
+                .build();
+
+        try (Response response = client.newCall(request).execute()) {
+            if (!response.isSuccessful()) {
+                throw new ServiceException("下载外部图片失败: " + response.code());
+            }
+            ResponseBody body = response.body();
+            if (body == null) {
+                throw new ServiceException("下载外部图片失败: 响应体为空");
+            }
+
+            String ext = resolveImageExtByMimeType(response.header("Content-Type"));
+            String fileName = "ext_" + System.currentTimeMillis() + "_" + UUID.randomUUID().toString().replace("-", "") + "." + ext;
+            File targetFile = new File(downloadDir, fileName);
+            Files.write(targetFile.toPath(), body.bytes());
+
+            if (!targetFile.exists() || !targetFile.isFile()) {
+                throw new ServiceException("下载外部图片失败: 文件落盘异常");
+            }
+            return targetFile;
+        } catch (IOException e) {
+            log.error("下载外部图片失败, url:{}, err:{}", imageUrl, e.getMessage(), e);
+            throw new ServiceException("下载外部图片失败");
+        }
     }
 
     private byte[] readFileBytes(File file) throws IOException {
