@@ -10,13 +10,16 @@ import com.ruoyi.common.exception.ServiceException;
 import com.ruoyi.starhome.domain.FurnitureAiCallRecordsDO;
 import com.ruoyi.starhome.domain.FurnitureNumberApiPoolDO;
 import com.ruoyi.starhome.domain.FurnitureUserBalanceAccountDO;
+import com.ruoyi.starhome.domain.FurnitureVideoTaskDO;
 import com.ruoyi.starhome.domain.dto.AiApiCallResult;
 import com.ruoyi.starhome.domain.dto.FileInfo;
+import com.ruoyi.starhome.domain.dto.ImageGenerateVideoRequest;
 import com.ruoyi.starhome.domain.dto.TaskApiInvokeRequest;
 import com.ruoyi.starhome.domain.dto.TaskApiInvokeResponse;
 import com.ruoyi.starhome.mapper.FurnitureAiCallRecordsMapper;
 import com.ruoyi.starhome.mapper.FurnitureNumberApiPoolMapper;
 import com.ruoyi.starhome.mapper.FurnitureUserPackageRightsMapper;
+import com.ruoyi.starhome.mapper.FurnitureVideoTaskMapper;
 import com.ruoyi.starhome.service.IApiCallMonitorCacheService;
 import com.ruoyi.starhome.service.IFurnitureUserBalanceAccountService;
 import com.ruoyi.starhome.service.ITaskApiInvokeService;
@@ -54,6 +57,8 @@ public class TaskApiInvokeServiceImpl implements ITaskApiInvokeService {
             .build();
 
     private static final BigDecimal TASK_API_CONSUME_AMOUNT = new BigDecimal("9.9");
+    private static final String IMAGE2VIDEO_API_NUMBER = "image2video_t8star_api";
+    private static final String PUBLIC_FILE_BASE_URL = "http://47.112.126.153";
 
     private final Map<Long, SseEmitter> emitterMap = new ConcurrentHashMap<>();
 
@@ -68,6 +73,9 @@ public class TaskApiInvokeServiceImpl implements ITaskApiInvokeService {
 
     @Autowired
     private FurnitureAiCallRecordsMapper furnitureAiCallRecordsMapper;
+
+    @Autowired
+    private FurnitureVideoTaskMapper furnitureVideoTaskMapper;
 
     @Autowired
     private IApiCallMonitorCacheService IApiCallMonitorCacheService;
@@ -145,6 +153,144 @@ public class TaskApiInvokeServiceImpl implements ITaskApiInvokeService {
         emitter.onTimeout(() -> emitterMap.remove(userId));
         emitter.onError(ex -> emitterMap.remove(userId));
         return emitter;
+    }
+
+    @Override
+    public TaskApiInvokeResponse imageGenerateVideo(ImageGenerateVideoRequest request) throws IOException {
+        if (request == null || request.getImageUrls() == null || request.getImageUrls().isEmpty()) {
+            throw new ServiceException("图片URL列表不能为空");
+        }
+
+        String apiNumber = request.getApiNumber();
+        if (apiNumber == null || apiNumber.isBlank()) {
+            apiNumber = IMAGE2VIDEO_API_NUMBER;
+        }
+        if (!IMAGE2VIDEO_API_NUMBER.equals(apiNumber)) {
+            throw new ServiceException("apiNumber不正确，仅支持: " + IMAGE2VIDEO_API_NUMBER);
+        }
+
+        FurnitureNumberApiPoolDO apiPool = furnitureNumberApiPoolMapper.selectOne(
+                new LambdaQueryWrapper<FurnitureNumberApiPoolDO>()
+                        .eq(FurnitureNumberApiPoolDO::getNumber, apiNumber)
+                        .last("limit 1")
+        );
+        if (apiPool == null || apiPool.getApiUrl() == null || apiPool.getApiUrl().isBlank()
+                || apiPool.getApiKey() == null || apiPool.getApiKey().isBlank()) {
+            throw new ServiceException("未找到图像生成视频接口配置");
+        }
+
+        List<String> publicImageUrls = new ArrayList<>();
+        for (String imageUrl : request.getImageUrls()) {
+            if (imageUrl == null || imageUrl.isBlank()) {
+                continue;
+            }
+            publicImageUrls.add(toPublicFileUrl(imageUrl));
+        }
+        if (publicImageUrls.isEmpty()) {
+            throw new ServiceException("图片URL列表不能为空");
+        }
+
+        String prompt = buildVideoPrompt(request.getPrompt(), request.getGenerateDescription());
+        String rawResponse = callImageToVideoApi(apiPool.getApiUrl(), apiPool.getApiKey(), prompt, publicImageUrls);
+
+        JsonNode resultNode = mapper.readTree(rawResponse);
+        String taskId = getText(resultNode, "task_id");
+        if (taskId == null || taskId.isBlank()) {
+            taskId = getText(resultNode, "id");
+        }
+
+        FurnitureVideoTaskDO videoTask = new FurnitureVideoTaskDO();
+        videoTask.setUserId(null);
+        videoTask.setTaskId(taskId);
+        videoTask.setModel(getText(resultNode, "model"));
+        videoTask.setProgress(getText(resultNode, "progress"));
+        videoTask.setStatus(getText(resultNode, "status"));
+        videoTask.setCost(BigDecimal.ZERO);
+        videoTask.setSize(getText(resultNode, "size"));
+        videoTask.setSeconds(getInteger(resultNode, "seconds"));
+        videoTask.setPrompt(prompt);
+        videoTask.setImageUrl(String.join(",", publicImageUrls));
+        videoTask.setIsComplete(isCompletedStatus(videoTask.getStatus()) ? 1 : 0);
+        videoTask.setStartTime(new Date());
+        furnitureVideoTaskMapper.insert(videoTask);
+
+        TaskApiInvokeResponse response = new TaskApiInvokeResponse();
+        response.setUserId(videoTask.getUserId());
+        response.setApiNumber(apiNumber);
+        response.setCallCost(BigDecimal.ZERO);
+        response.setApiResult(rawResponse);
+        return response;
+    }
+
+    private String callImageToVideoApi(String apiUrl, String apiKey, String prompt, List<String> publicImageUrls) throws IOException {
+        MultipartBody.Builder formBuilder = new MultipartBody.Builder()
+                .setType(MultipartBody.FORM)
+                .addFormDataPart("model", "sora-2-pro")
+                .addFormDataPart("prompt", prompt == null ? "" : prompt)
+                .addFormDataPart("size", "720x1280")
+                .addFormDataPart("input_reference", mapper.writeValueAsString(publicImageUrls))
+                .addFormDataPart("seconds", "15")
+                .addFormDataPart("watermark", "false");
+
+        Request request = new Request.Builder()
+                .url(trimEndSlash(apiUrl))
+                .post(formBuilder.build())
+                .addHeader("Authorization", "Bearer " + apiKey)
+                .build();
+
+        try (Response response = client.newCall(request).execute()) {
+            ResponseBody body = response.body();
+            String responseText = body == null ? "" : body.string();
+            if (!response.isSuccessful()) {
+                throw new ServiceException("图像生成视频调用失败: " + response.code() + " - " + responseText);
+            }
+            if (responseText == null || responseText.isBlank()) {
+                throw new ServiceException("图像生成视频调用失败: 响应体为空");
+            }
+            return responseText;
+        }
+    }
+
+    private String buildVideoPrompt(String prompt, Boolean generateDescription) {
+        if (prompt != null && !prompt.isBlank()) {
+            return prompt;
+        }
+        if (Boolean.TRUE.equals(generateDescription)) {
+            return "请基于参考图内容生成自然、流畅、细节丰富的15秒竖版视频";
+        }
+        return "";
+    }
+
+    private boolean isCompletedStatus(String status) {
+        if (status == null || status.isBlank()) {
+            return false;
+        }
+        String lower = status.toLowerCase();
+        return "completed".equals(lower) || "succeeded".equals(lower) || "success".equals(lower);
+    }
+
+    private String getText(JsonNode node, String fieldName) {
+        JsonNode value = node.path(fieldName);
+        return value.isMissingNode() || value.isNull() ? null : value.asText();
+    }
+
+    private Integer getInteger(JsonNode node, String fieldName) {
+        JsonNode value = node.path(fieldName);
+        if (value.isMissingNode() || value.isNull()) {
+            return null;
+        }
+        if (value.isInt() || value.isLong()) {
+            return value.asInt();
+        }
+        String text = value.asText();
+        if (text == null || text.isBlank()) {
+            return null;
+        }
+        try {
+            return Integer.parseInt(text);
+        } catch (NumberFormatException e) {
+            return null;
+        }
     }
 
     private AiApiCallResult callGeminiImageApiByApiNumber(TaskApiInvokeRequest request) throws IOException {
@@ -300,8 +446,6 @@ public class TaskApiInvokeServiceImpl implements ITaskApiInvokeService {
         }
         return text.substring(leftParen + 1, rightParen).trim();
     }
-
-    private static final String PUBLIC_FILE_BASE_URL = "http://47.112.126.153";
 
     private String toPublicFileUrl(String filePath) {
         File file = resolveProfileFile(filePath);
@@ -463,8 +607,14 @@ public class TaskApiInvokeServiceImpl implements ITaskApiInvokeService {
                 throw new IOException("工作流调用失败: 响应体为空");
             }
             String raw = responseBody.string();
-            JsonNode usageNode = mapper.readTree("{\"prompt_tokens\":\"0\",\"completion_tokens\":\"0\",\"total_tokens\":\"0\",\"total_price\":\"1\"}");
-            recordUsageAsync(userId,module,"gemini_fusion_4imgs",usageNode);
+            JsonNode root = parseStreamingJson(raw);
+            if (root != null) {
+                String aiMode = root.path("data").path("process_data").path("model_name").asText(null);
+                JsonNode usageNode = extractUsageNode(root);
+                if (usageNode != null) {
+                    recordUsageAsync(userId, module, aiMode, usageNode);
+                }
+            }
             return extractBlockingAnswer(raw);
         }
     }

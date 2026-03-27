@@ -6,6 +6,7 @@ import com.ruoyi.common.enums.BusinessType;
 import com.ruoyi.framework.security.util.SecurityFrameworkUtils;
 import com.ruoyi.starhome.domain.dto.CopyGenerateRequest;
 import com.ruoyi.starhome.domain.dto.GenerateSceneRequest;
+import com.ruoyi.starhome.domain.dto.ImageGenerateVideoRequest;
 import com.ruoyi.starhome.service.IFurnitureApiService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -46,6 +47,17 @@ public class FurnitureApiController {
     @PostMapping(value = "/copy/generate", consumes = MediaType.APPLICATION_JSON_VALUE)
     public AjaxResult copyGenerate(@RequestBody CopyGenerateRequest request) {
         return success(furnitureApiService.copyGenerate(request));
+    }
+
+    @Operation(summary = "图像生成视频", description = "图像生成视频")
+    @io.swagger.v3.oas.annotations.parameters.RequestBody(
+            required = true,
+            description = "图像生成视频"
+    )
+    @Log(title = "图像生成视频", businessType = BusinessType.UPDATE)
+    @PostMapping(value = "/image/generate-video", consumes = MediaType.APPLICATION_JSON_VALUE)
+    public AjaxResult imageGenerateVideo(@RequestBody ImageGenerateVideoRequest request) throws IOException {
+        return success(furnitureApiService.imageGenerateVideo(request));
     }
 
     @Operation(summary = "建立任务SSE流", description = "建立任务调用的SSE连接")
