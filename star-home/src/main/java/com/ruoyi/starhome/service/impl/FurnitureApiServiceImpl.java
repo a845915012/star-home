@@ -65,6 +65,21 @@ public class FurnitureApiServiceImpl implements IFurnitureApiService {
 
     @Override
     public TaskApiInvokeResponse imageGenerateVideo(ImageGenerateVideoRequest request) throws IOException {
+        if (Boolean.TRUE.equals(request.getGenerateDescription())) {
+            TaskApiInvokeRequest taskRequest = new TaskApiInvokeRequest();
+            taskRequest.setUserId(SecurityFrameworkUtils.getLoginUserId());
+            taskRequest.setApiNumber("image2videotext");
+            taskRequest.setUseSse(false);
+            taskRequest.setQuestion("根据图片主体生成描述该主体的视频");
+            taskRequest.setModule("图生视频");
+            taskRequest.setConsumeConstants(ConsumeConstants.IMAGE2VIDEOTEXT);
+            taskRequest.setFilePaths(request.getImageUrls());
+
+            TaskApiInvokeResponse descriptionResponse = taskApiInvokeService.invokeTaskApi(taskRequest);
+            if (descriptionResponse != null && StringUtils.isNotBlank(descriptionResponse.getApiResult())) {
+                request.setPrompt(descriptionResponse.getApiResult());
+            }
+        }
         return taskApiInvokeService.imageGenerateVideo(request);
     }
 

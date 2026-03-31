@@ -190,8 +190,7 @@ public class TaskApiInvokeServiceImpl implements ITaskApiInvokeService {
             throw new ServiceException("图片URL列表不能为空");
         }
 
-        String prompt = buildVideoPrompt(request.getPrompt(), request.getGenerateDescription());
-        String rawResponse = callImageToVideoApi(apiPool.getApiUrl(), apiPool.getApiKey(), prompt, publicImageUrls);
+        String rawResponse = callImageToVideoApi(apiPool.getApiUrl(), apiPool.getApiKey(), request.getPrompt(), publicImageUrls);
 
         JsonNode resultNode = mapper.readTree(rawResponse);
         String taskId = getText(resultNode, "task_id");
@@ -208,7 +207,7 @@ public class TaskApiInvokeServiceImpl implements ITaskApiInvokeService {
         videoTask.setCost(BigDecimal.ZERO);
         videoTask.setSize(getText(resultNode, "size"));
         videoTask.setSeconds(getInteger(resultNode, "seconds"));
-        videoTask.setPrompt(prompt);
+        videoTask.setPrompt(request.getPrompt());
         videoTask.setImageUrl(String.join(",", publicImageUrls));
         videoTask.setIsComplete(isCompletedStatus(videoTask.getStatus()) ? 1 : 0);
         videoTask.setStartTime(new Date());

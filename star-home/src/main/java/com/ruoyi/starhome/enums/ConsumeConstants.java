@@ -5,6 +5,7 @@ import java.math.BigDecimal;
 public enum ConsumeConstants {
     TEST(BigDecimal.ZERO),
     IMAGE2TEXT(new BigDecimal("5.0")),
+    IMAGE2VIDEOTEXT(new BigDecimal("1.0")),
     // 图生图草稿
     IMAGE2IMAGE_DRAFT(new BigDecimal("2.0")),
     // 图生图最终版
