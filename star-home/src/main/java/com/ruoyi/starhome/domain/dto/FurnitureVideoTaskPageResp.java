@@ -10,5 +10,5 @@ import java.util.List;
 @Data
 public class FurnitureVideoTaskPageResp {
     private long total;
-    private List<FurnitureVideoTaskPageVO> list;
+    private List<FurnitureVideoTaskPageItemResp> list;
 }

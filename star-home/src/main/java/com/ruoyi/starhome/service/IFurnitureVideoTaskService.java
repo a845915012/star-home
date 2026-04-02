@@ -6,4 +6,6 @@ import com.ruoyi.starhome.domain.dto.FurnitureVideoTaskPageResp;
 public interface IFurnitureVideoTaskService {
 
     FurnitureVideoTaskPageResp selectPage(FurnitureVideoTaskPageRequest request);
+
+    String getProcessByTaskId(String taskId);
 }

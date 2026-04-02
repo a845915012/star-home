@@ -1,12 +1,14 @@
 package com.ruoyi.starhome.domain.dto;
 
 import io.swagger.v3.oas.annotations.media.Schema;
+import lombok.Data;
 
 import java.util.Date;
 
 /**
  * 视频任务分页单条数据
  */
+@Data
 public class FurnitureVideoTaskPageItemResp {
 
     @Schema(description = "尺寸")
@@ -39,83 +41,4 @@ public class FurnitureVideoTaskPageItemResp {
     @Schema(description = "完成时间")
     private Date finishTime;
 
-    public String getSize() {
-        return size;
-    }
-
-    public void setSize(String size) {
-        this.size = size;
-    }
-
-    public Integer getSeconds() {
-        return seconds;
-    }
-
-    public void setSeconds(Integer seconds) {
-        this.seconds = seconds;
-    }
-
-    public String getProgress() {
-        return progress;
-    }
-
-    public void setProgress(String progress) {
-        this.progress = progress;
-    }
-
-    public String getStatus() {
-        return status;
-    }
-
-    public void setStatus(String status) {
-        this.status = status;
-    }
-
-    public String getPrompt() {
-        return prompt;
-    }
-
-    public void setPrompt(String prompt) {
-        this.prompt = prompt;
-    }
-
-    public String getImageUrl() {
-        return imageUrl;
-    }
-
-    public void setImageUrl(String imageUrl) {
-        this.imageUrl = imageUrl;
-    }
-
-    public String getVideoUrlRemote() {
-        return videoUrlRemote;
-    }
-
-    public void setVideoUrlRemote(String videoUrlRemote) {
-        this.videoUrlRemote = videoUrlRemote;
-    }
-
-    public Integer getIsComplete() {
-        return isComplete;
-    }
-
-    public void setIsComplete(Integer isComplete) {
-        this.isComplete = isComplete;
-    }
-
-    public Date getStartTime() {
-        return startTime;
-    }
-
-    public void setStartTime(Date startTime) {
-        this.startTime = startTime;
-    }
-
-    public Date getFinishTime() {
-        return finishTime;
-    }
-
-    public void setFinishTime(Date finishTime) {
-        this.finishTime = finishTime;
-    }
 }
