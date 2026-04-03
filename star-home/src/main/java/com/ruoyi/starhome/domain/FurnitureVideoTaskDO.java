@@ -18,6 +18,7 @@ public class FurnitureVideoTaskDO implements Serializable {
 
     @TableId(value = "id", type = IdType.AUTO)
     private Long id;
+    private Long generationTaskId;
     private Long userId;
     private String taskId;
     private String model;

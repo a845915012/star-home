@@ -250,16 +250,6 @@ public class TaskApiInvokeServiceImpl implements ITaskApiInvokeService {
         }
     }
 
-    private String buildVideoPrompt(String prompt, Boolean generateDescription) {
-        if (prompt != null && !prompt.isBlank()) {
-            return prompt;
-        }
-        if (Boolean.TRUE.equals(generateDescription)) {
-            return "请基于参考图内容生成自然、流畅、细节丰富的15秒竖版视频";
-        }
-        return "";
-    }
-
     private boolean isCompletedStatus(String status) {
         if (status == null || status.isBlank()) {
             return false;
