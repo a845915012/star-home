@@ -18,6 +18,14 @@ public class FurnitureVideoGenerationTaskDO implements Serializable {
     @TableId(value = "id", type = IdType.AUTO)
     private Long id;
     private Long userId;
+    /**
+     * 产品主体
+     */
+    private String product;
+    /**
+     * 材质
+     */
+    private String material;
     private String imageUrl;
     /**
      * 期望任务数

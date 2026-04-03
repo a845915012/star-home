@@ -6,7 +6,7 @@ import com.ruoyi.common.enums.BusinessType;
 import com.ruoyi.framework.security.util.SecurityFrameworkUtils;
 import com.ruoyi.starhome.domain.dto.CopyGenerateRequest;
 import com.ruoyi.starhome.domain.dto.GenerateSceneRequest;
-import com.ruoyi.starhome.domain.dto.ImageGenerateVideoRequest;
+import com.ruoyi.starhome.domain.dto.ImageGenerateVideoClientRequest;
 import com.ruoyi.starhome.service.IFurnitureApiService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -56,7 +56,7 @@ public class FurnitureApiController {
     )
     @Log(title = "图像生成视频", businessType = BusinessType.UPDATE)
     @PostMapping(value = "/image/generate-video", consumes = MediaType.APPLICATION_JSON_VALUE)
-    public AjaxResult imageGenerateVideo(@RequestBody ImageGenerateVideoRequest request) throws IOException {
+    public AjaxResult imageGenerateVideo(@RequestBody ImageGenerateVideoClientRequest request) throws IOException {
         return success(furnitureApiService.imageGenerateVideo(request));
     }
 
