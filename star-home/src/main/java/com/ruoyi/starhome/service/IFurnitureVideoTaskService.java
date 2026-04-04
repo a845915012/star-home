@@ -8,4 +8,6 @@ public interface IFurnitureVideoTaskService {
     FurnitureVideoTaskPageResp selectPage(FurnitureVideoTaskPageRequest request);
 
     String getProcessByTaskId(String taskId);
+
+    void processAppendingGenerationTasks();
 }

@@ -24,7 +24,7 @@ public class FurnitureVideoTaskProcessSyncTask {
     /**
      * 每5分钟同步一次未完成视频任务进度
      */
-    @Scheduled(cron = "0 */5 * * * ?")
+    @Scheduled(cron = "0 */1 * * * ?")
     public void syncUnfinishedVideoTaskProcess() {
         List<FurnitureVideoTaskDO> unfinishedTasks = furnitureVideoTaskMapper.selectList(
                 new LambdaQueryWrapper<FurnitureVideoTaskDO>()
@@ -47,6 +47,24 @@ public class FurnitureVideoTaskProcessSyncTask {
             } catch (Exception e) {
                 log.error("同步视频任务进度失败, taskId={}", taskId, e);
             }
+        }
+
+        try {
+            furnitureVideoTaskService.processAppendingGenerationTasks();
+        } catch (Exception e) {
+            log.error("处理appending单据头视频拼接失败", e);
+        }
+    }
+
+    /**
+     * 每5分钟同步一次未完成视频任务进度
+     */
+    @Scheduled(cron = "0 */1 * * * ?")
+    public void syncAppendVideoTaskProcess() {
+        try {
+            furnitureVideoTaskService.processAppendingGenerationTasks();
+        } catch (Exception e) {
+            log.error("处理appending单据头视频拼接失败", e);
         }
     }
 }

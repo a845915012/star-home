@@ -1036,7 +1036,7 @@ public class TaskApiInvokeServiceImpl implements ITaskApiInvokeService {
     }
 
     private File downloadExternalImageToProfile(String imageUrl) {
-        File downloadDir = new File(RuoYiConfig.getProfile(), "download");
+        File downloadDir = new File(RuoYiConfig.getProfile(), "download/image");
         if (!downloadDir.exists() && !downloadDir.mkdirs()) {
             throw new ServiceException("创建下载目录失败: " + downloadDir.getAbsolutePath());
         }

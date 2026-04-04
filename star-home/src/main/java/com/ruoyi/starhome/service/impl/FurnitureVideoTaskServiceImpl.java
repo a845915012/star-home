@@ -4,8 +4,10 @@ import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.github.pagehelper.PageHelper;
+import com.ruoyi.common.config.RuoYiConfig;
 import com.ruoyi.common.exception.ServiceException;
 import com.ruoyi.common.utils.SecurityUtils;
+import com.ruoyi.framework.manager.AsyncManager;
 import com.ruoyi.framework.security.util.SecurityFrameworkUtils;
 import com.ruoyi.starhome.domain.FurnitureNumberApiPoolDO;
 import com.ruoyi.starhome.domain.FurnitureVideoGenerationTaskDO;
@@ -28,13 +30,23 @@ import okhttp3.ResponseBody;
 import org.springframework.beans.BeanUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
+import java.io.File;
 import java.io.IOException;
 import java.math.BigDecimal;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.StandardOpenOption;
+import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.Date;
 import java.util.List;
+import java.util.TimerTask;
+import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
@@ -68,6 +80,135 @@ public class FurnitureVideoTaskServiceImpl implements IFurnitureVideoTaskService
     private ITaskApiInvokeService taskApiInvokeService;
 
     @Override
+    public void processAppendingGenerationTasks() {
+        List<FurnitureVideoGenerationTaskDO> appendingHeaders = furnitureVideoGenerationTaskMapper.selectList(
+                new LambdaQueryWrapper<FurnitureVideoGenerationTaskDO>()
+                        .eq(FurnitureVideoGenerationTaskDO::getStatus, "appending")
+                        .orderByAsc(FurnitureVideoGenerationTaskDO::getId)
+        );
+
+        if (appendingHeaders == null || appendingHeaders.isEmpty()) {
+            return;
+        }
+
+        for (FurnitureVideoGenerationTaskDO header : appendingHeaders) {
+            if (header == null || header.getId() == null) {
+                continue;
+            }
+            try {
+                mergeHeaderVideosAndUpdateUrl(header);
+            } catch (Exception e) {
+                log.error("拼接视频失败, generationTaskId={}", header.getId(), e);
+                FurnitureVideoGenerationTaskDO failUpdate = new FurnitureVideoGenerationTaskDO();
+                failUpdate.setId(header.getId());
+                failUpdate.setStatus("failed");
+                failUpdate.setErrorMessage(e.getMessage());
+                furnitureVideoGenerationTaskMapper.updateById(failUpdate);
+            }
+        }
+    }
+
+    private void mergeHeaderVideosAndUpdateUrl(FurnitureVideoGenerationTaskDO header) {
+        List<FurnitureVideoTaskDO> detailList = furnitureVideoTaskMapper.selectList(
+                new LambdaQueryWrapper<FurnitureVideoTaskDO>()
+                        .eq(FurnitureVideoTaskDO::getGenerationTaskId, header.getId())
+                        .orderByAsc(FurnitureVideoTaskDO::getStartTime)
+                        .orderByAsc(FurnitureVideoTaskDO::getId)
+        );
+
+        if (detailList == null || detailList.isEmpty()) {
+            throw new ServiceException("单据头下无可拼接明细");
+        }
+
+        List<String> localSegmentUrls = detailList.stream()
+                .filter(item -> item.getVideoUrlLocal() != null && !item.getVideoUrlLocal().isBlank())
+                .map(FurnitureVideoTaskDO::getVideoUrlLocal)
+                .collect(Collectors.toList());
+
+        if (localSegmentUrls.isEmpty()) {
+            throw new ServiceException("单据头下无可拼接本地视频");
+        }
+
+        String mergedLocalUrl = mergeLocalMp4Videos(localSegmentUrls);
+
+        FurnitureVideoGenerationTaskDO successUpdate = new FurnitureVideoGenerationTaskDO();
+        successUpdate.setId(header.getId());
+        successUpdate.setLocalFinalVideoUrl(mergedLocalUrl);
+        successUpdate.setStatus("success");
+        successUpdate.setErrorMessage(null);
+        furnitureVideoGenerationTaskMapper.updateById(successUpdate);
+    }
+
+    private String mergeLocalMp4Videos(List<String> localSegmentUrls) {
+        File downloadDir = new File(RuoYiConfig.getProfile(), "download/video");
+        if (!downloadDir.exists() && !downloadDir.mkdirs()) {
+            throw new ServiceException("创建视频下载目录失败: " + downloadDir.getAbsolutePath());
+        }
+
+        List<Path> localPaths = new ArrayList<>();
+        for (String localUrl : localSegmentUrls) {
+            Path path = resolveProfilePathByLocalUrl(localUrl);
+            if (!Files.exists(path) || !Files.isRegularFile(path)) {
+                throw new ServiceException("待拼接视频文件不存在: " + path);
+            }
+            localPaths.add(path);
+        }
+
+        Path listFile = null;
+        try {
+            listFile = Files.createTempFile("ffmpeg_concat_", ".txt");
+            List<String> lines = localPaths.stream()
+                    .map(path -> "file '" + path.toAbsolutePath().toString().replace("\\", "/") + "'")
+                    .collect(Collectors.toList());
+            log.info("localPaths:{}",lines);
+            Files.write(listFile, lines, StandardCharsets.UTF_8, StandardOpenOption.TRUNCATE_EXISTING);
+
+            String outputName = "video_merged_" + System.currentTimeMillis() + "_" + UUID.randomUUID().toString().replace("-", "") + ".mp4";
+            File outputFile = new File(downloadDir, outputName);
+
+            ProcessBuilder pb = new ProcessBuilder(
+                    "ffmpeg", "-y", "-f", "concat", "-safe", "0",
+                    "-i", listFile.toAbsolutePath().toString(),
+                    "-c", "copy",
+                    outputFile.getAbsolutePath()
+            );
+            pb.redirectErrorStream(true);
+            Process process = pb.start();
+            String ffmpegOutput = new String(process.getInputStream().readAllBytes(), StandardCharsets.UTF_8);
+            int exitCode = process.waitFor();
+
+            if (exitCode != 0 || !outputFile.exists() || outputFile.length() <= 0) {
+                throw new ServiceException("ffmpeg拼接失败: " + ffmpegOutput);
+            }
+
+            return "/profile/download/video/" + outputName;
+        } catch (IOException e) {
+            throw new ServiceException("执行ffmpeg拼接异常: " + e.getMessage());
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new ServiceException("ffmpeg拼接被中断: " + e.getMessage());
+        } finally {
+            if (listFile != null) {
+                try {
+                    Files.deleteIfExists(listFile);
+                } catch (IOException ignore) {
+                    // ignore
+                }
+            }
+        }
+    }
+
+    private Path resolveProfilePathByLocalUrl(String localUrl) {
+        String normalized = localUrl;
+        if (normalized.startsWith("/profile/")) {
+            normalized = normalized.substring("/profile/".length());
+        } else if (normalized.startsWith("profile/")) {
+            normalized = normalized.substring("profile/".length());
+        }
+        return new File(RuoYiConfig.getProfile(), normalized).toPath();
+    }
+
+    @Override
     public FurnitureVideoTaskPageResp selectPage(FurnitureVideoTaskPageRequest request) {
         Long userId = SecurityUtils.getUserId();
 
@@ -88,6 +229,7 @@ public class FurnitureVideoTaskServiceImpl implements IFurnitureVideoTaskService
     }
 
     @Override
+    @Transactional
     public String getProcessByTaskId(String taskId) {
         if (taskId == null || taskId.isBlank()) {
             throw new ServiceException("taskId不能为空");
@@ -145,7 +287,8 @@ public class FurnitureVideoTaskServiceImpl implements IFurnitureVideoTaskService
             update.setCost(getBigDecimal(root, "cost"));
             update.setSize(getText(dataNode, "size", null));
             update.setSeconds(getInteger(dataNode, "seconds"));
-            update.setVideoUrlRemote(getText(dataNode, "video_url", null));
+            String remoteVideoUrl = getText(dataNode, "output", null);
+            update.setVideoUrlRemote(remoteVideoUrl);
 
             Long finishTimeSeconds = getLong(root, "finish_time");
             if (finishTimeSeconds == null || finishTimeSeconds <= 0) {
@@ -159,6 +302,10 @@ public class FurnitureVideoTaskServiceImpl implements IFurnitureVideoTaskService
 
             furnitureVideoTaskMapper.update(update, new LambdaQueryWrapper<FurnitureVideoTaskDO>()
                             .eq(FurnitureVideoTaskDO::getTaskId, taskId));
+
+            if (isSuccessStatus(update.getStatus()) && remoteVideoUrl != null && !remoteVideoUrl.isBlank()) {
+                asyncDownloadVideoAndUpdateLocalUrl(taskId, remoteVideoUrl);
+            }
 
             return furnitureVideoTaskMapper.selectOne(
                     new LambdaQueryWrapper<FurnitureVideoTaskDO>()
@@ -270,8 +417,7 @@ public class FurnitureVideoTaskServiceImpl implements IFurnitureVideoTaskService
             FurnitureVideoGenerationTaskDO updateHeader = new FurnitureVideoGenerationTaskDO();
             updateHeader.setId(generationTask.getId());
             updateHeader.setCurrentTaskCount(current + 1);
-            updateHeader.setStatus("completed");
-            updateHeader.setRemoteFinalVideoUrl(currentTask.getVideoUrlRemote());
+            updateHeader.setStatus("appending");
             furnitureVideoGenerationTaskMapper.updateById(updateHeader);
             return;
         }
@@ -468,6 +614,81 @@ public class FurnitureVideoTaskServiceImpl implements IFurnitureVideoTaskService
         } catch (Exception e) {
             return null;
         }
+    }
+
+    private void asyncDownloadVideoAndUpdateLocalUrl(String taskId, String remoteVideoUrl) {
+        AsyncManager.me().execute(new TimerTask() {
+            @Override
+            public void run() {
+                try {
+                    String localUrl = downloadRemoteVideoToProfile(remoteVideoUrl);
+                    if (localUrl == null || localUrl.isBlank()) {
+                        return;
+                    }
+                    FurnitureVideoTaskDO localUpdate = new FurnitureVideoTaskDO();
+                    localUpdate.setVideoUrlLocal(localUrl);
+                    furnitureVideoTaskMapper.update(localUpdate,
+                            new LambdaQueryWrapper<FurnitureVideoTaskDO>()
+                                    .eq(FurnitureVideoTaskDO::getTaskId, taskId));
+                } catch (Exception e) {
+                    log.error("异步下载视频并更新本地地址失败, taskId={}, remoteUrl={}", taskId, remoteVideoUrl, e);
+                }
+            }
+        });
+    }
+
+    private String downloadRemoteVideoToProfile(String remoteVideoUrl) {
+        File downloadDir = new File(RuoYiConfig.getProfile(), "download/video");
+        if (!downloadDir.exists() && !downloadDir.mkdirs()) {
+            throw new ServiceException("创建视频下载目录失败: " + downloadDir.getAbsolutePath());
+        }
+
+        Request request = new Request.Builder()
+                .url(remoteVideoUrl)
+                .get()
+                .build();
+
+        try (Response response = httpClient.newCall(request).execute()) {
+            if (!response.isSuccessful()) {
+                throw new ServiceException("下载远程视频失败: " + response.code());
+            }
+            ResponseBody body = response.body();
+            if (body == null) {
+                throw new ServiceException("下载远程视频失败: 响应体为空");
+            }
+
+            String ext = resolveVideoExtByMimeType(response.header("Content-Type"));
+            String fileName = "video_" + System.currentTimeMillis() + "_" + UUID.randomUUID().toString().replace("-", "") + "." + ext;
+            File targetFile = new File(downloadDir, fileName);
+            Files.write(targetFile.toPath(), body.bytes());
+
+            if (!targetFile.exists() || !targetFile.isFile()) {
+                throw new ServiceException("下载远程视频失败: 文件落盘异常");
+            }
+            return "/profile/download/video/" + fileName;
+        } catch (IOException e) {
+            throw new ServiceException("下载远程视频失败: " + e.getMessage());
+        }
+    }
+
+    private String resolveVideoExtByMimeType(String mimeType) {
+        if (mimeType == null || mimeType.isBlank()) {
+            return "mp4";
+        }
+        String normalized = mimeType.toLowerCase();
+        if (normalized.contains("quicktime")) {
+            return "mov";
+        }
+        if (normalized.contains("webm")) {
+            return "webm";
+        }
+        if (normalized.contains("x-matroska") || normalized.contains("matroska")) {
+            return "mkv";
+        }
+        if (normalized.contains("avi")) {
+            return "avi";
+        }
+        return "mp4";
     }
 
     private List<FurnitureVideoTaskPageItemResp> convertList(List<FurnitureVideoTaskDO> records) {

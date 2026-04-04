@@ -40,10 +40,6 @@ public class FurnitureVideoGenerationTaskDO implements Serializable {
      */
     private String status;
     /**
-     * 最终远程视频地址
-     */
-    private String remoteFinalVideoUrl;
-    /**
      * 最终本地视频地址
      */
     private String localFinalVideoUrl;
