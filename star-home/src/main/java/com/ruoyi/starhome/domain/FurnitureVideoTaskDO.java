@@ -34,6 +34,8 @@ public class FurnitureVideoTaskDO implements Serializable {
     private String videoUrlRemote;
     private String videoUrlLocal;
     private Integer isComplete;
+    private Integer processing;
+    private Date lockTime;
     private Date startTime;
     private Date finishTime;
 }

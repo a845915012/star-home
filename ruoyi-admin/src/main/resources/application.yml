@@ -141,3 +141,9 @@ xss:
   excludes: /system/notice
   # 匹配链接
   urlPatterns: /system/*,/monitor/*,/tool/*
+
+# star-home 业务配置
+starhome:
+  video-task:
+    # 视频任务处理锁超时分钟数（超过该时间会在下次调度时回收锁）
+    lock-expire-minutes: 10

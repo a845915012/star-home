@@ -351,7 +351,7 @@ public class FurnitureVideoTaskServiceImpl implements IFurnitureVideoTaskService
             taskApiInvokeService.imageGenerateVideo(retryReq);
 
             FurnitureVideoTaskDO retryUpdate = new FurnitureVideoTaskDO();
-            retryUpdate.setStatus("RETRYING");
+            retryUpdate.setStatus("FAIL");
             retryUpdate.setFailReason(null);
             retryUpdate.setProgress("0%");
             retryUpdate.setIsComplete(0);
