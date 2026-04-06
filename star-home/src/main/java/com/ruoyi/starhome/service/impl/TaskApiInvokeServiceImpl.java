@@ -18,6 +18,7 @@ import com.ruoyi.starhome.mapper.*;
 import com.ruoyi.starhome.service.IApiCallMonitorCacheService;
 import com.ruoyi.starhome.service.IFurnitureUserBalanceAccountService;
 import com.ruoyi.starhome.service.ITaskApiInvokeService;
+import com.ruoyi.starhome.util.StarhomeFileUrlUtils;
 import com.ruoyi.framework.manager.AsyncManager;
 import lombok.extern.slf4j.Slf4j;
 import okhttp3.*;
@@ -53,7 +54,6 @@ public class TaskApiInvokeServiceImpl implements ITaskApiInvokeService {
             .build();
 
     private static final String IMAGE2VIDEO_API_NUMBER = "image2video_t8star_api";
-    private static final String PUBLIC_FILE_BASE_URL = "http://47.112.126.153";
 
     private final Map<Long, SseEmitter> emitterMap = new ConcurrentHashMap<>();
 
@@ -80,6 +80,9 @@ public class TaskApiInvokeServiceImpl implements ITaskApiInvokeService {
 
     @Autowired
     private FurnitureVideoGenerationTaskMapper furnitureVideoGenerationTaskMapper;
+
+    @Autowired
+    private StarhomeFileUrlUtils starhomeFileUrlUtils;
 
     @Override
     @Transactional(rollbackFor = Exception.class)
@@ -505,16 +508,7 @@ public class TaskApiInvokeServiceImpl implements ITaskApiInvokeService {
 
     private String toPublicFileUrl(String filePath) {
         File file = resolveProfileFile(filePath);
-        String profileRoot = new File(RuoYiConfig.getProfile()).getAbsolutePath().replace("\\", "/");
-        String absolutePath = file.getAbsolutePath().replace("\\", "/");
-        if (!absolutePath.startsWith(profileRoot)) {
-            throw new ServiceException("文件路径不在profile目录下: " + filePath);
-        }
-        String relative = absolutePath.substring(profileRoot.length());
-        if (!relative.startsWith("/")) {
-            relative = "/" + relative;
-        }
-        return PUBLIC_FILE_BASE_URL + relative;
+        return starhomeFileUrlUtils.toPublicFileUrl(file);
     }
 
     private String trimEndSlash(String url) {

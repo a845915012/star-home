@@ -211,6 +211,21 @@ public class FurnitureVideoTaskServiceImpl implements IFurnitureVideoTaskService
     }
 
     @Override
+    public List<FurnitureVideoTaskDO> listByGenerationTaskId(Long generationTaskId) {
+        if (generationTaskId == null) {
+            throw new ServiceException("generationTaskId不能为空");
+        }
+        Long userId = SecurityUtils.getUserId();
+        return furnitureVideoTaskMapper.selectList(
+                new LambdaQueryWrapper<FurnitureVideoTaskDO>()
+                        .eq(FurnitureVideoTaskDO::getGenerationTaskId, generationTaskId)
+                        .eq(FurnitureVideoTaskDO::getUserId, userId)
+                        .orderByAsc(FurnitureVideoTaskDO::getStartTime)
+                        .orderByAsc(FurnitureVideoTaskDO::getId)
+        );
+    }
+
+    @Override
     public String getProcessByTaskId(String taskId) {
         if (taskId == null || taskId.isBlank()) {
             throw new ServiceException("taskId不能为空");

@@ -13,6 +13,7 @@ import com.ruoyi.starhome.enums.ConsumeConstants;
 import com.ruoyi.starhome.mapper.FurnitureVideoGenerationTaskMapper;
 import com.ruoyi.starhome.mapper.FurnitureVideoTaskMapper;
 import com.ruoyi.starhome.service.ITaskApiInvokeService;
+import com.ruoyi.starhome.util.StarhomeFileUrlUtils;
 import lombok.extern.slf4j.Slf4j;
 import okhttp3.OkHttpClient;
 import okhttp3.Request;
@@ -27,8 +28,10 @@ import org.springframework.transaction.support.TransactionSynchronizationManager
 
 import java.io.File;
 import java.io.IOException;
+import java.io.InputStream;
 import java.math.BigDecimal;
 import java.nio.file.Files;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.Date;
@@ -60,9 +63,17 @@ public class FurnitureVideoTaskPostProcessService {
     @Autowired
     private ITaskApiInvokeService taskApiInvokeService;
 
+    @Autowired
+    private StarhomeFileUrlUtils starhomeFileUrlUtils;
+
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public FurnitureVideoTaskDO updateVideoTaskByResponse(String taskId, String responseText) {
         try {
+            FurnitureVideoTaskDO existingTask = furnitureVideoTaskMapper.selectOne(
+                    new LambdaQueryWrapper<FurnitureVideoTaskDO>()
+                            .eq(FurnitureVideoTaskDO::getTaskId, taskId)
+                            .last("limit 1"));
+
             JsonNode root = objectMapper.readTree(responseText);
             JsonNode dataNode = root.path("data");
 
@@ -90,6 +101,8 @@ public class FurnitureVideoTaskPostProcessService {
 
             furnitureVideoTaskMapper.update(update, new LambdaQueryWrapper<FurnitureVideoTaskDO>()
                     .eq(FurnitureVideoTaskDO::getTaskId, taskId));
+
+            updateGenerationTaskCountIfNeeded(existingTask, update);
 
             if (isSuccessStatus(update.getStatus()) && remoteVideoUrl != null && !remoteVideoUrl.isBlank()) {
                 if (TransactionSynchronizationManager.isActualTransactionActive()) {
@@ -138,18 +151,41 @@ public class FurnitureVideoTaskPostProcessService {
         int expected = expectedTaskCount == null ? 0 : expectedTaskCount;
         int current = currentTaskCount == null ? 0 : currentTaskCount;
 
-        if (expected == current + 1) {
-            FurnitureVideoGenerationTaskDO updateHeader = new FurnitureVideoGenerationTaskDO();
-            updateHeader.setId(generationTask.getId());
-            updateHeader.setCurrentTaskCount(current + 1);
-            updateHeader.setStatus("appending");
-            furnitureVideoGenerationTaskMapper.updateById(updateHeader);
+        if (expected > current) {
+            triggerNextVideoGeneration(generationTask, currentTask);
+        }
+    }
+
+    private void updateGenerationTaskCountIfNeeded(FurnitureVideoTaskDO existingTask, FurnitureVideoTaskDO updateTask) {
+        if (existingTask == null || existingTask.getGenerationTaskId() == null) {
+            return;
+        }
+        if (!isSuccessStatus(updateTask.getStatus())) {
             return;
         }
 
-        if (expected > current + 1) {
-            triggerNextVideoGeneration(generationTask, currentTask, current);
+        String oldStatus = existingTask.getStatus();
+        if (isSuccessStatus(oldStatus)) {
+            return;
         }
+
+        FurnitureVideoGenerationTaskDO generationTask = furnitureVideoGenerationTaskMapper.selectById(existingTask.getGenerationTaskId());
+        if (generationTask == null) {
+            return;
+        }
+
+        Integer currentTaskCount = generationTask.getCurrentTaskCount();
+        Integer expectedTaskCount = generationTask.getExpectedTaskCount();
+        int current = currentTaskCount == null ? 0 : currentTaskCount;
+        int expected = expectedTaskCount == null ? 0 : expectedTaskCount;
+
+        FurnitureVideoGenerationTaskDO updateHeader = new FurnitureVideoGenerationTaskDO();
+        updateHeader.setId(generationTask.getId());
+        updateHeader.setCurrentTaskCount(current + 1);
+        if (expected > 0 && current + 1 >= expected) {
+            updateHeader.setStatus("appending");
+        }
+        furnitureVideoGenerationTaskMapper.updateById(updateHeader);
     }
 
     private void retryFailedVideoTask(FurnitureVideoTaskDO currentTask) {
@@ -226,16 +262,30 @@ public class FurnitureVideoTaskPostProcessService {
         return Collections.singletonList(latestSuccessTask.getVideoUrlRemote());
     }
 
-    private void triggerNextVideoGeneration(FurnitureVideoGenerationTaskDO generationTask, FurnitureVideoTaskDO currentTask, int currentTaskCount) {
+    private void triggerNextVideoGeneration(FurnitureVideoGenerationTaskDO generationTask, FurnitureVideoTaskDO currentTask) {
         String videoUrl = currentTask.getVideoUrlRemote();
         if (videoUrl == null || videoUrl.isBlank()) {
+            return;
+        }
+
+        String lastFrameImageUrl;
+        try {
+            lastFrameImageUrl = extractLastFrameToProfile(videoUrl);
+        } catch (Exception e) {
+            FurnitureVideoGenerationTaskDO failedHeader = new FurnitureVideoGenerationTaskDO();
+            failedHeader.setId(generationTask.getId());
+            failedHeader.setStatus("failed");
+            failedHeader.setErrorMessage("提取视频最后一帧失败: " + e.getMessage());
+            furnitureVideoGenerationTaskMapper.updateById(failedHeader);
+            log.error("发起下一段视频生成失败(提取最后一帧异常), generationTaskId={}, taskId={}, videoUrl={}",
+                    generationTask.getId(), currentTask.getTaskId(), videoUrl, e);
             return;
         }
 
         ImageGenerateVideoRequest nextReq = new ImageGenerateVideoRequest();
         nextReq.setGenerationTaskId(generationTask.getId());
         nextReq.setUserId(generationTask.getUserId() != null ? generationTask.getUserId() : currentTask.getUserId());
-        nextReq.setImageUrls(Collections.singletonList(videoUrl));
+        nextReq.setImageUrls(Collections.singletonList(lastFrameImageUrl));
         nextReq.setProduct(generationTask.getProduct());
         nextReq.setMaterial(generationTask.getMaterial());
         nextReq.setPrompt(resolveNextPrompt(generationTask, currentTask));
@@ -245,7 +295,6 @@ public class FurnitureVideoTaskPostProcessService {
 
             FurnitureVideoGenerationTaskDO updateHeader = new FurnitureVideoGenerationTaskDO();
             updateHeader.setId(generationTask.getId());
-            updateHeader.setCurrentTaskCount(currentTaskCount + 1);
             updateHeader.setStatus("process");
             furnitureVideoGenerationTaskMapper.updateById(updateHeader);
         } catch (Exception e) {
@@ -254,7 +303,54 @@ public class FurnitureVideoTaskPostProcessService {
             failedHeader.setStatus("failed");
             failedHeader.setErrorMessage(e.getMessage());
             furnitureVideoGenerationTaskMapper.updateById(failedHeader);
-            log.error("发起下一段视频生成失败, generationTaskId={}, taskId={}", generationTask.getId(), currentTask.getTaskId(), e);
+            log.error("发起下一段视频生成失败, generationTaskId={}, taskId={}, imageUrl={}",
+                    generationTask.getId(), currentTask.getTaskId(), lastFrameImageUrl, e);
+        }
+    }
+
+    private String extractLastFrameToProfile(String remoteVideoUrl) {
+        File frameDir = new File(RuoYiConfig.getProfile(), "download/video-frame");
+        if (!frameDir.exists() && !frameDir.mkdirs()) {
+            throw new ServiceException("创建视频帧目录失败: " + frameDir.getAbsolutePath());
+        }
+
+        String frameFileName = "last_frame_" + System.currentTimeMillis() + "_"
+                + UUID.randomUUID().toString().replace("-", "") + ".jpg";
+        File frameFile = new File(frameDir, frameFileName);
+
+        List<String> command = new ArrayList<>();
+        command.add("ffmpeg");
+        command.add("-y");
+        command.add("-sseof");
+        command.add("-0.1");
+        command.add("-i");
+        command.add(remoteVideoUrl);
+        command.add("-frames:v");
+        command.add("1");
+        command.add("-q:v");
+        command.add("2");
+        command.add(frameFile.getAbsolutePath());
+
+        ProcessBuilder processBuilder = new ProcessBuilder(command);
+        processBuilder.redirectErrorStream(true);
+
+        try {
+            Process process = processBuilder.start();
+            String ffmpegOutput;
+            try (InputStream in = process.getInputStream()) {
+                ffmpegOutput = new String(in.readAllBytes());
+            }
+
+            int exitCode = process.waitFor();
+            if (exitCode != 0 || !frameFile.exists() || frameFile.length() <= 0) {
+                throw new ServiceException("ffmpeg提取最后一帧失败, exitCode=" + exitCode + ", output=" + ffmpegOutput);
+            }
+            return starhomeFileUrlUtils.toPublicFileUrl(frameFile);
+        } catch (IOException e) {
+            throw new ServiceException("调用ffmpeg提取最后一帧失败: " + e.getMessage());
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new ServiceException("提取最后一帧被中断: " + e.getMessage());
         }
     }
 
@@ -275,7 +371,7 @@ public class FurnitureVideoTaskPostProcessService {
                 "\n" +
                 "【时间轴控制】\n" +
                 "\n" +
-                "8s（必须完全匹配上一段）:\n" +
+                "8s（第一视频是0-7s，该图片是第一个视频的尾帧，必须完全匹配提供的图片）:\n" +
                 "固定镜头：\n" +
                 "- 中近景（medium-close shot）\n" +
                 "- 平视角度\n" +
