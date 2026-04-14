@@ -9,6 +9,7 @@ import com.ruoyi.starhome.domain.dto.FurnitureVideoGenerationTaskPageRequest;
 import com.ruoyi.starhome.domain.dto.FurnitureVideoGenerationTaskPageResp;
 import com.ruoyi.starhome.mapper.FurnitureVideoGenerationTaskMapper;
 import com.ruoyi.starhome.service.IFurnitureVideoGenerationTaskService;
+import org.apache.commons.lang3.StringUtils;
 import org.springframework.beans.BeanUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
@@ -29,14 +30,14 @@ public class FurnitureVideoGenerationTaskServiceImpl implements IFurnitureVideoG
 
         try (com.github.pagehelper.Page<Object> page = PageHelper.startPage(request.getPageNum(), request.getPageSize())) {
             List<FurnitureVideoGenerationTaskDO> records = furnitureVideoGenerationTaskMapper.selectList(
-                    request.getStatus().equalsIgnoreCase("process") ?
+                    StringUtils.isNotBlank(request.getStatus()) && request.getStatus().equalsIgnoreCase("process") ?
                     new LambdaQueryWrapper<FurnitureVideoGenerationTaskDO>()
                             .eq(FurnitureVideoGenerationTaskDO::getUserId, userId)
-                            .in(FurnitureVideoGenerationTaskDO::getStatus, "process","appending")
+                            .in(FurnitureVideoGenerationTaskDO::getStatus,"process","appending")
                             .orderByDesc(FurnitureVideoGenerationTaskDO::getId)
                     : new LambdaQueryWrapper<FurnitureVideoGenerationTaskDO>()
                             .eq(FurnitureVideoGenerationTaskDO::getUserId, userId)
-                            .eq(FurnitureVideoGenerationTaskDO::getStatus, request.getStatus().trim())
+                            .eq(StringUtils.isNotBlank(request.getStatus()), FurnitureVideoGenerationTaskDO::getStatus ,request.getStatus().trim())
                             .orderByDesc(FurnitureVideoGenerationTaskDO::getId)
             );
 
