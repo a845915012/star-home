@@ -29,10 +29,14 @@ public class FurnitureVideoGenerationTaskServiceImpl implements IFurnitureVideoG
 
         try (com.github.pagehelper.Page<Object> page = PageHelper.startPage(request.getPageNum(), request.getPageSize())) {
             List<FurnitureVideoGenerationTaskDO> records = furnitureVideoGenerationTaskMapper.selectList(
+                    request.getStatus().equalsIgnoreCase("process") ?
                     new LambdaQueryWrapper<FurnitureVideoGenerationTaskDO>()
                             .eq(FurnitureVideoGenerationTaskDO::getUserId, userId)
-                            .eq(request.getStatus() != null && !request.getStatus().trim().isEmpty(),
-                                    FurnitureVideoGenerationTaskDO::getStatus, request.getStatus().trim())
+                            .in(FurnitureVideoGenerationTaskDO::getStatus, "process","appending")
+                            .orderByDesc(FurnitureVideoGenerationTaskDO::getId)
+                    : new LambdaQueryWrapper<FurnitureVideoGenerationTaskDO>()
+                            .eq(FurnitureVideoGenerationTaskDO::getUserId, userId)
+                            .eq(FurnitureVideoGenerationTaskDO::getStatus, request.getStatus().trim())
                             .orderByDesc(FurnitureVideoGenerationTaskDO::getId)
             );
 

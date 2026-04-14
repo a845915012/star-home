@@ -47,6 +47,7 @@ public class FurnitureVideoTaskPostProcessService {
 
     private static final String STATUS_SUCCESS = "SUCCESS";
     private static final String STATUS_FAILURE = "FAILURE";
+    private static final String STATUS_FAIL = "FAIL";
 
     private final ObjectMapper objectMapper = new ObjectMapper();
     private final OkHttpClient httpClient = new OkHttpClient.Builder()
@@ -414,7 +415,7 @@ public class FurnitureVideoTaskPostProcessService {
     }
 
     private boolean isFailedStatus(String status) {
-        return status != null && STATUS_FAILURE.equalsIgnoreCase(status.trim());
+        return status != null && (STATUS_FAILURE.equalsIgnoreCase(status.trim()) || STATUS_FAIL.equalsIgnoreCase(status.trim()));
     }
 
     private boolean isCompletedStatus(String status) {
