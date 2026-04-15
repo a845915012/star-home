@@ -264,6 +264,7 @@ public class FurnitureVideoTaskPostProcessService {
     }
 
     private void triggerNextVideoGeneration(FurnitureVideoGenerationTaskDO generationTask, FurnitureVideoTaskDO currentTask) {
+        log.info("generationTaskId={}, currentTaskId={},生成下一条视频", generationTask.getId(), currentTask.getId());
         String videoUrl = currentTask.getVideoUrlRemote();
         if (videoUrl == null || videoUrl.isBlank()) {
             return;
