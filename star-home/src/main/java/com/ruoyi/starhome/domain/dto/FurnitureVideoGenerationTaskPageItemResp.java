@@ -18,6 +18,7 @@ public class FurnitureVideoGenerationTaskPageItemResp {
     private Integer currentTaskCount;
     private String status;
     private String localFinalVideoUrl;
+    private String remoteFinalVideoUrl;
     private String errorMessage;
     private LocalDateTime createTime;
     private LocalDateTime updateTime;

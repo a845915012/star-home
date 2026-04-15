@@ -15,6 +15,7 @@ import com.ruoyi.starhome.mapper.FurnitureNumberApiPoolMapper;
 import com.ruoyi.starhome.mapper.FurnitureVideoGenerationTaskMapper;
 import com.ruoyi.starhome.mapper.FurnitureVideoTaskMapper;
 import com.ruoyi.starhome.service.IFurnitureVideoTaskService;
+import com.ruoyi.starhome.util.StarhomeFileUrlUtils;
 import lombok.extern.slf4j.Slf4j;
 import okhttp3.OkHttpClient;
 import okhttp3.Request;
@@ -60,6 +61,10 @@ public class FurnitureVideoTaskServiceImpl implements IFurnitureVideoTaskService
 
     @Autowired
     private FurnitureVideoTaskPostProcessService furnitureVideoTaskPostProcessService;
+
+    @Autowired
+    private StarhomeFileUrlUtils starhomeFileUrlUtils;
+
 
     @Override
     public void processAppendingGenerationTasks() {
@@ -112,10 +117,12 @@ public class FurnitureVideoTaskServiceImpl implements IFurnitureVideoTaskService
         }
 
         String mergedLocalUrl = mergeLocalMp4Videos(localSegmentUrls);
+        String mergedRemoteUrl = starhomeFileUrlUtils.toPublicFileUrl(resolveProfilePathByLocalUrl(mergedLocalUrl).toFile());
 
         FurnitureVideoGenerationTaskDO successUpdate = new FurnitureVideoGenerationTaskDO();
         successUpdate.setId(header.getId());
         successUpdate.setLocalFinalVideoUrl(mergedLocalUrl);
+        successUpdate.setRemoteFinalVideoUrl(mergedRemoteUrl);
         successUpdate.setStatus("success");
         successUpdate.setErrorMessage(null);
         furnitureVideoGenerationTaskMapper.updateById(successUpdate);
