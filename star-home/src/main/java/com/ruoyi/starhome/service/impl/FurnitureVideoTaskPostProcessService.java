@@ -100,9 +100,9 @@ public class FurnitureVideoTaskPostProcessService {
 
             update.setIsComplete(isCompletedStatus(update.getStatus()) ? 1 : 0);
 
-            furnitureVideoTaskMapper.update(update, new LambdaQueryWrapper<FurnitureVideoTaskDO>()
+            int updateCount = furnitureVideoTaskMapper.update(update, new LambdaQueryWrapper<FurnitureVideoTaskDO>()
                     .eq(FurnitureVideoTaskDO::getTaskId, taskId));
-
+            log.info("updateVideoTaskByResponse taskId={} updateCount={}", taskId, updateCount);
             updateGenerationTaskCountIfNeeded(existingTask, update);
 
             if (isSuccessStatus(update.getStatus()) && remoteVideoUrl != null && !remoteVideoUrl.isBlank()) {
@@ -130,7 +130,7 @@ public class FurnitureVideoTaskPostProcessService {
 
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public void handleFailedVideoTaskIfNeeded(FurnitureVideoTaskDO currentTask) {
-        if (currentTask == null || !isFailedStatus(currentTask.getStatus())) {
+        if (currentTask == null || currentTask.getIsComplete() == 0 || !isFailedStatus(currentTask.getStatus())) {
             return;
         }
         retryFailedVideoTask(currentTask);
@@ -138,7 +138,7 @@ public class FurnitureVideoTaskPostProcessService {
 
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public void handleNextVideoSegmentIfNeeded(FurnitureVideoTaskDO currentTask) {
-        if (currentTask == null || !isSuccessStatus(currentTask.getStatus()) || currentTask.getGenerationTaskId() == null) {
+        if (currentTask == null || currentTask.getIsComplete() == 0 || !isSuccessStatus(currentTask.getStatus()) || currentTask.getGenerationTaskId() == null) {
             return;
         }
 

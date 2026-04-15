@@ -73,9 +73,6 @@ public class TaskApiInvokeServiceImpl implements ITaskApiInvokeService {
     private FurnitureVideoTaskMapper furnitureVideoTaskMapper;
 
     @Autowired
-    private IApiCallMonitorCacheService IApiCallMonitorCacheService;
-
-    @Autowired
     private IApiCallMonitorCacheService apiCallMonitorCacheService;
 
     @Autowired
@@ -173,7 +170,7 @@ public class TaskApiInvokeServiceImpl implements ITaskApiInvokeService {
             throw new ServiceException("用户未登录");
         }
 
-        // 先校验余额，业务成功后再扣费
+        // 先校验余额，扣费延后到任务成功后统一处理
         validateBalanceEnough(userId,request.getConsumeConstants().getPrice());
 
         String apiNumber = request.getApiNumber();
@@ -259,8 +256,7 @@ public class TaskApiInvokeServiceImpl implements ITaskApiInvokeService {
         videoTask.setStartTime(new Date());
         furnitureVideoTaskMapper.insert(videoTask);
 
-        // 与 invokeTaskApi 保持一致：业务完成后扣费 + 调用监控记录
-        furnitureUserBalanceAccountService.consume(userId, request.getConsumeConstants().getPrice());
+        // 调用监控先写缓存，扣费放到后续任务成功后处理
         apiCallMonitorCacheService.recordCall(userId);
 
         TaskApiInvokeResponse response = new TaskApiInvokeResponse();
@@ -911,14 +907,11 @@ public class TaskApiInvokeServiceImpl implements ITaskApiInvokeService {
         return null;
     }
 
-    private void recordUsageAsync(Long userId, String module, String aiMode, JsonNode usageNode) {
-        if (userId == null || usageNode == null || usageNode.isNull()) {
+    @Override
+    public void recordUsageAsync(Long userId, String module, String aiMode, BigDecimal totalPrice) {
+        if (userId == null || totalPrice == null) {
             return;
         }
-        BigDecimal promptTokens = parseBigDecimal(usageNode.path("prompt_tokens"));
-        BigDecimal completionTokens = parseBigDecimal(usageNode.path("completion_tokens"));
-        BigDecimal totalTokens = parseBigDecimal(usageNode.path("total_tokens"));
-        BigDecimal totalPrice = parseBigDecimal(usageNode.path("total_price"));
         AsyncManager.me().execute(new TimerTask() {
             @Override
             public void run() {
@@ -926,14 +919,22 @@ public class TaskApiInvokeServiceImpl implements ITaskApiInvokeService {
                 record.setUserId(userId);
                 record.setModule(module);
                 record.setAiMode(aiMode);
-                record.setTokenIn(promptTokens);
-                record.setTokenOut(completionTokens);
-                record.setTotalToken(totalTokens);
+                record.setTokenIn(BigDecimal.ZERO);
+                record.setTokenOut(BigDecimal.ZERO);
+                record.setTotalToken(BigDecimal.ZERO);
                 record.setCost(totalPrice);
                 record.setCreateTime(new Date());
                 furnitureAiCallRecordsMapper.insert(record);
             }
         });
+    }
+
+    private void recordUsageAsync(Long userId, String module, String aiMode, JsonNode usageNode) {
+        if (userId == null || usageNode == null || usageNode.isNull()) {
+            return;
+        }
+        BigDecimal totalPrice = parseBigDecimal(usageNode.path("total_price"));
+        recordUsageAsync(userId, module, aiMode, totalPrice);
     }
 
     private BigDecimal parseBigDecimal(JsonNode node) {

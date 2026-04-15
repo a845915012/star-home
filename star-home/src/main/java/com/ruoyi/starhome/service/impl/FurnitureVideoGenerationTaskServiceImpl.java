@@ -37,7 +37,7 @@ public class FurnitureVideoGenerationTaskServiceImpl implements IFurnitureVideoG
                             .orderByDesc(FurnitureVideoGenerationTaskDO::getId)
                     : new LambdaQueryWrapper<FurnitureVideoGenerationTaskDO>()
                             .eq(FurnitureVideoGenerationTaskDO::getUserId, userId)
-                            .eq(StringUtils.isNotBlank(request.getStatus()), FurnitureVideoGenerationTaskDO::getStatus ,request.getStatus().trim())
+                            .eq(StringUtils.isNotBlank(request.getStatus()), FurnitureVideoGenerationTaskDO::getStatus ,request.getStatus())
                             .orderByDesc(FurnitureVideoGenerationTaskDO::getId)
             );
 

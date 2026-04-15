@@ -7,14 +7,18 @@ import com.ruoyi.common.exception.ServiceException;
 import com.ruoyi.common.utils.SecurityUtils;
 import com.ruoyi.starhome.domain.FurnitureNumberApiPoolDO;
 import com.ruoyi.starhome.domain.FurnitureVideoGenerationTaskDO;
+import com.ruoyi.starhome.enums.ConsumeConstants;
 import com.ruoyi.starhome.domain.FurnitureVideoTaskDO;
 import com.ruoyi.starhome.domain.dto.FurnitureVideoTaskPageItemResp;
 import com.ruoyi.starhome.domain.dto.FurnitureVideoTaskPageRequest;
 import com.ruoyi.starhome.domain.dto.FurnitureVideoTaskPageResp;
+import com.ruoyi.starhome.mapper.FurnitureAiCallRecordsMapper;
 import com.ruoyi.starhome.mapper.FurnitureNumberApiPoolMapper;
 import com.ruoyi.starhome.mapper.FurnitureVideoGenerationTaskMapper;
 import com.ruoyi.starhome.mapper.FurnitureVideoTaskMapper;
+import com.ruoyi.starhome.service.IFurnitureUserBalanceAccountService;
 import com.ruoyi.starhome.service.IFurnitureVideoTaskService;
+import com.ruoyi.starhome.service.ITaskApiInvokeService;
 import com.ruoyi.starhome.util.StarhomeFileUrlUtils;
 import lombok.extern.slf4j.Slf4j;
 import okhttp3.OkHttpClient;
@@ -63,6 +67,11 @@ public class FurnitureVideoTaskServiceImpl implements IFurnitureVideoTaskService
     private FurnitureVideoTaskPostProcessService furnitureVideoTaskPostProcessService;
 
     @Autowired
+    private IFurnitureUserBalanceAccountService furnitureUserBalanceAccountService;
+    @Autowired
+    private ITaskApiInvokeService taskApiInvokeService;
+
+    @Autowired
     private StarhomeFileUrlUtils starhomeFileUrlUtils;
 
 
@@ -108,12 +117,13 @@ public class FurnitureVideoTaskServiceImpl implements IFurnitureVideoTaskService
         }
 
         List<String> localSegmentUrls = detailList.stream()
+                .filter(item -> item.getStatus() != null && item.getStatus().equalsIgnoreCase("success"))
                 .filter(item -> item.getVideoUrlLocal() != null && !item.getVideoUrlLocal().isBlank())
                 .map(FurnitureVideoTaskDO::getVideoUrlLocal)
                 .collect(Collectors.toList());
 
         if (localSegmentUrls.isEmpty()) {
-            throw new ServiceException("单据头下无可拼接本地视频");
+            throw new ServiceException("单据头下无成功视频可拼接");
         }
 
         String mergedLocalUrl = mergeLocalMp4Videos(localSegmentUrls);
@@ -126,6 +136,8 @@ public class FurnitureVideoTaskServiceImpl implements IFurnitureVideoTaskService
         successUpdate.setStatus("success");
         successUpdate.setErrorMessage(null);
         furnitureVideoGenerationTaskMapper.updateById(successUpdate);
+        furnitureUserBalanceAccountService.consume(header.getUserId(), ConsumeConstants.IMAGE2VIDEO.getPrice());
+        taskApiInvokeService.recordUsageAsync(header.getUserId(), "video_generation", "veo3.1-pro", ConsumeConstants.IMAGE2VIDEO.getPrice());
     }
 
     private String mergeLocalMp4Videos(List<String> localSegmentUrls) {
@@ -249,7 +261,7 @@ public class FurnitureVideoTaskServiceImpl implements IFurnitureVideoTaskService
 
         String responseText = queryVideoTaskProcess(taskId, apiPool.getApiKey());
         FurnitureVideoTaskDO updatedTask = furnitureVideoTaskPostProcessService.updateVideoTaskByResponse(taskId, responseText);
-
+        log.info("getProcessByTaskId updatedTask:{}", updatedTask);
         if (updatedTask != null) {
             try {
                 furnitureVideoTaskPostProcessService.handleFailedVideoTaskIfNeeded(updatedTask);

@@ -33,6 +33,10 @@ public class FurnitureAiCallRecordsServiceImpl implements IFurnitureAiCallRecord
                     .orderByDesc(FurnitureAiCallRecordsDO::getId));
             FurnitureAiCallRecordsPageResp resp = new FurnitureAiCallRecordsPageResp();
             resp.setList(records);
+            resp.setTotal(page.getTotal());
+            resp.setPageNum(page.getPageNum());
+            resp.setPageSize(page.getPageSize());
+            resp.setPages(page.getPages());
             // 按 aiMode 分组
             Map<String, List<FurnitureAiCallRecordsDO>> grouped = records.stream()
                     .collect(Collectors.groupingBy(FurnitureAiCallRecordsDO::getAiMode));
@@ -56,6 +60,7 @@ public class FurnitureAiCallRecordsServiceImpl implements IFurnitureAiCallRecord
 
                 summaries.add(summary);
             });
+            resp.setSummary(summaries);
             return resp;
         }
     }
