@@ -202,69 +202,76 @@ public class TaskApiInvokeServiceImpl implements ITaskApiInvokeService {
             throw new ServiceException("图片URL列表不能为空");
         }
 
-        String rawResponse = callImageToVideoApi(apiPool.getApiUrl(), apiPool.getApiKey(), request.getPrompt(), publicImageUrls);
+        try {
+            String rawResponse = callImageToVideoApi(apiPool.getApiUrl(), apiPool.getApiKey(), request.getPrompt(), publicImageUrls);
 
-        JsonNode resultNode = mapper.readTree(rawResponse);
-        String taskId = getText(resultNode, "task_id");
-        if (taskId == null || taskId.isBlank()) {
-            taskId = getText(resultNode, "id");
-        }
-        FurnitureVideoGenerationTaskDO generationTaskDO;
-        if (generationTaskId == null) {
-            generationTaskDO = new FurnitureVideoGenerationTaskDO();
-            generationTaskDO.setUserId(userId);
-            generationTaskDO.setProduct(request.getProduct());
-            generationTaskDO.setMaterial(request.getMaterial());
-            generationTaskDO.setImageUrl(publicImageUrls.toString());
-            generationTaskDO.setExpectedTaskCount(2);
-            generationTaskDO.setCurrentTaskCount(0);
-            generationTaskDO.setStatus("process");
-            generationTaskDO.setCreateTime(LocalDateTime.now());
-            furnitureVideoGenerationTaskMapper.insert(generationTaskDO);
-        } else {
-            generationTaskDO = furnitureVideoGenerationTaskMapper.selectById(generationTaskId);
-            if (generationTaskDO == null) {
-                throw new ServiceException("未找到视频生成头任务: " + generationTaskId);
+            JsonNode resultNode = mapper.readTree(rawResponse);
+            String taskId = getText(resultNode, "task_id");
+            if (taskId == null || taskId.isBlank()) {
+                taskId = getText(resultNode, "id");
             }
-            FurnitureVideoGenerationTaskDO updateHeader = new FurnitureVideoGenerationTaskDO();
-            updateHeader.setId(generationTaskId);
-            updateHeader.setStatus("process");
-            if ((generationTaskDO.getProduct() == null || generationTaskDO.getProduct().isBlank()) && request.getProduct() != null && !request.getProduct().isBlank()) {
-                updateHeader.setProduct(request.getProduct());
+            FurnitureVideoGenerationTaskDO generationTaskDO;
+            if (generationTaskId == null) {
+                generationTaskDO = new FurnitureVideoGenerationTaskDO();
+                generationTaskDO.setUserId(userId);
                 generationTaskDO.setProduct(request.getProduct());
-            }
-            if ((generationTaskDO.getMaterial() == null || generationTaskDO.getMaterial().isBlank()) && request.getMaterial() != null && !request.getMaterial().isBlank()) {
-                updateHeader.setMaterial(request.getMaterial());
                 generationTaskDO.setMaterial(request.getMaterial());
+                generationTaskDO.setImageUrl(publicImageUrls.toString());
+                generationTaskDO.setExpectedTaskCount(2);
+                generationTaskDO.setCurrentTaskCount(0);
+                generationTaskDO.setStatus("process");
+                generationTaskDO.setCreateTime(LocalDateTime.now());
+                furnitureVideoGenerationTaskMapper.insert(generationTaskDO);
+            } else {
+                generationTaskDO = furnitureVideoGenerationTaskMapper.selectById(generationTaskId);
+                if (generationTaskDO == null) {
+                    throw new ServiceException("未找到视频生成头任务: " + generationTaskId);
+                }
+                FurnitureVideoGenerationTaskDO updateHeader = new FurnitureVideoGenerationTaskDO();
+                updateHeader.setId(generationTaskId);
+                updateHeader.setStatus("process");
+                if ((generationTaskDO.getProduct() == null || generationTaskDO.getProduct().isBlank()) && request.getProduct() != null && !request.getProduct().isBlank()) {
+                    updateHeader.setProduct(request.getProduct());
+                    generationTaskDO.setProduct(request.getProduct());
+                }
+                if ((generationTaskDO.getMaterial() == null || generationTaskDO.getMaterial().isBlank()) && request.getMaterial() != null && !request.getMaterial().isBlank()) {
+                    updateHeader.setMaterial(request.getMaterial());
+                    generationTaskDO.setMaterial(request.getMaterial());
+                }
+                furnitureVideoGenerationTaskMapper.updateById(updateHeader);
             }
-            furnitureVideoGenerationTaskMapper.updateById(updateHeader);
+
+            FurnitureVideoTaskDO videoTask = new FurnitureVideoTaskDO();
+            videoTask.setGenerationTaskId(generationTaskDO.getId());
+            videoTask.setUserId(userId);
+            videoTask.setTaskId(taskId);
+            videoTask.setModel(getText(resultNode, "model"));
+            videoTask.setProgress(getText(resultNode, "progress"));
+            videoTask.setStatus(getText(resultNode, "status"));
+            videoTask.setCost(BigDecimal.ZERO);
+            videoTask.setSize(getText(resultNode, "size"));
+            videoTask.setSeconds(getInteger(resultNode, "seconds"));
+            videoTask.setPrompt(request.getPrompt());
+            videoTask.setImageUrl(String.join(",", publicImageUrls));
+            videoTask.setIsComplete(isCompletedStatus(videoTask.getStatus()) ? 1 : 0);
+            videoTask.setStartTime(new Date());
+            furnitureVideoTaskMapper.insert(videoTask);
+
+            // 调用监控先写缓存，扣费放到后续任务成功后处理
+            apiCallMonitorCacheService.recordCall(userId);
+
+            TaskApiInvokeResponse response = new TaskApiInvokeResponse();
+            response.setUserId(videoTask.getUserId());
+            response.setApiNumber(apiNumber);
+            response.setCallCost(request.getConsumeConstants().getPrice());
+            response.setApiResult(rawResponse);
+            return response;
+        } catch (IOException e) {
+            if (generationTaskId != null) {
+                markImageToVideoGenerationFailed(generationTaskId, userId, request, publicImageUrls, e.getMessage());
+            }
+            throw e;
         }
-
-        FurnitureVideoTaskDO videoTask = new FurnitureVideoTaskDO();
-        videoTask.setGenerationTaskId(generationTaskDO.getId());
-        videoTask.setUserId(userId);
-        videoTask.setTaskId(taskId);
-        videoTask.setModel(getText(resultNode, "model"));
-        videoTask.setProgress(getText(resultNode, "progress"));
-        videoTask.setStatus(getText(resultNode, "status"));
-        videoTask.setCost(BigDecimal.ZERO);
-        videoTask.setSize(getText(resultNode, "size"));
-        videoTask.setSeconds(getInteger(resultNode, "seconds"));
-        videoTask.setPrompt(request.getPrompt());
-        videoTask.setImageUrl(String.join(",", publicImageUrls));
-        videoTask.setIsComplete(isCompletedStatus(videoTask.getStatus()) ? 1 : 0);
-        videoTask.setStartTime(new Date());
-        furnitureVideoTaskMapper.insert(videoTask);
-
-        // 调用监控先写缓存，扣费放到后续任务成功后处理
-        apiCallMonitorCacheService.recordCall(userId);
-
-        TaskApiInvokeResponse response = new TaskApiInvokeResponse();
-        response.setUserId(videoTask.getUserId());
-        response.setApiNumber(apiNumber);
-        response.setCallCost(request.getConsumeConstants().getPrice());
-        response.setApiResult(rawResponse);
-        return response;
     }
 
     private String callImageToVideoApi(String apiUrl, String apiKey, String prompt, List<String> publicImageUrls) throws IOException {
@@ -297,19 +304,54 @@ public class TaskApiInvokeServiceImpl implements ITaskApiInvokeService {
                 .addHeader("Content-Type", "application/json")
                 .build();
 
-        try (Response response = client.newCall(request).execute()) {
-            if (!response.isSuccessful()) {
-                ResponseBody errorBody = response.body();
-                throw new IOException("图生视频调用失败: " + response.code() + " - " + (errorBody == null ? "" : errorBody.string()));
+        List<String> errors = new ArrayList<>();
+        for (int attempt = 1; attempt <= 3; attempt++) {
+            try (Response response = client.newCall(request).execute()) {
+                if (!response.isSuccessful()) {
+                    ResponseBody errorBody = response.body();
+                    throw new IOException("图生视频调用失败: " + response.code() + " - " + (errorBody == null ? "" : errorBody.string()));
+                }
+                ResponseBody responseBody = response.body();
+                if (responseBody == null) {
+                    throw new IOException("图生视频调用失败: 响应体为空");
+                }
+                return responseBody.string();
+            } catch (IOException e) {
+                String errorMessage = "第" + attempt + "次调用失败: " + e.getMessage();
+                errors.add(errorMessage);
+                if (attempt == 3) {
+                    throw new IOException("图生视频调用失败，三次重试均失败：" + String.join("；", errors), e);
+                }
             }
-            ResponseBody responseBody = response.body();
-            if (responseBody == null) {
-                throw new IOException("图生视频调用失败: 响应体为空");
-            }
-            return responseBody.string();
-        } catch (IOException e) {
-            throw new IOException("图生视频" + e.getMessage(), e);
         }
+        throw new IOException("图生视频调用失败，三次重试均失败：" + String.join("；", errors));
+    }
+
+    private void markImageToVideoGenerationFailed(Long generationTaskId, Long userId, ImageGenerateVideoRequest request,
+                                                  List<String> publicImageUrls, String failReason) {
+        FurnitureVideoGenerationTaskDO generationTaskDO = furnitureVideoGenerationTaskMapper.selectById(generationTaskId);
+        if (generationTaskDO != null) {
+            FurnitureVideoGenerationTaskDO updateHeader = new FurnitureVideoGenerationTaskDO();
+            updateHeader.setId(generationTaskId);
+            updateHeader.setStatus("FAIL");
+            updateHeader.setErrorMessage(failReason);
+            furnitureVideoGenerationTaskMapper.updateById(updateHeader);
+        }
+
+        FurnitureVideoTaskDO failTask = new FurnitureVideoTaskDO();
+        failTask.setGenerationTaskId(generationTaskId);
+        failTask.setUserId(userId);
+        failTask.setProgress("0%");
+        failTask.setStatus("FAIL");
+        failTask.setCost(BigDecimal.ZERO);
+        failTask.setFailReason(failReason);
+        failTask.setPrompt(request == null ? null : request.getPrompt());
+        failTask.setImageUrl(publicImageUrls == null ? null : String.join(",", publicImageUrls));
+        failTask.setIsComplete(0);
+        failTask.setProcessing(0);
+        failTask.setStartTime(new Date());
+        failTask.setFinishTime(new Date());
+        furnitureVideoTaskMapper.insert(failTask);
     }
 
     private boolean isCompletedStatus(String status) {
