@@ -69,6 +69,7 @@ public class FurnitureVideoTaskPostProcessService {
 
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public FurnitureVideoTaskDO updateVideoTaskByResponse(String taskId, String responseText) {
+        log.info("begin updateVideoTaskByResponse responseText:{}",responseText);
         try {
             FurnitureVideoTaskDO existingTask = furnitureVideoTaskMapper.selectOne(
                     new LambdaQueryWrapper<FurnitureVideoTaskDO>()
@@ -214,22 +215,6 @@ public class FurnitureVideoTaskPostProcessService {
 
         try {
             taskApiInvokeService.imageGenerateVideo(retryReq);
-
-            FurnitureVideoTaskDO retryUpdate = new FurnitureVideoTaskDO();
-            retryUpdate.setStatus("FAIL");
-            retryUpdate.setFailReason(null);
-            retryUpdate.setProgress("0%");
-            retryUpdate.setIsComplete(0);
-            retryUpdate.setFinishTime(null);
-            furnitureVideoTaskMapper.update(retryUpdate,
-                    new LambdaQueryWrapper<FurnitureVideoTaskDO>()
-                            .eq(FurnitureVideoTaskDO::getId, currentTask.getId()));
-
-            FurnitureVideoGenerationTaskDO headerUpdate = new FurnitureVideoGenerationTaskDO();
-            headerUpdate.setId(generationTask.getId());
-            headerUpdate.setStatus("process");
-            headerUpdate.setErrorMessage(null);
-            furnitureVideoGenerationTaskMapper.updateById(headerUpdate);
         } catch (Exception e) {
             log.error("视频任务失败后重试触发失败, generationTaskId={}, taskId={}", generationTask.getId(), currentTask.getTaskId(), e);
         }
@@ -290,7 +275,8 @@ public class FurnitureVideoTaskPostProcessService {
         nextReq.setImageUrls(Collections.singletonList(lastFrameImageUrl));
         nextReq.setProduct(generationTask.getProduct());
         nextReq.setMaterial(generationTask.getMaterial());
-        nextReq.setPrompt(resolveNextPrompt(generationTask, currentTask));
+        nextReq.setPrompt(resolveNextPrompt(generationTask));
+        log.info("nextPrompt:{}",nextReq.getPrompt());
         nextReq.setConsumeConstants(ConsumeConstants.IMAGE2VIDEO);
         try {
             taskApiInvokeService.imageGenerateVideo(nextReq);
@@ -356,11 +342,7 @@ public class FurnitureVideoTaskPostProcessService {
         }
     }
 
-    private String resolveNextPrompt(FurnitureVideoGenerationTaskDO generationTask, FurnitureVideoTaskDO currentTask) {
-        if (currentTask.getPrompt() != null && !currentTask.getPrompt().isBlank()) {
-            return currentTask.getPrompt();
-        }
-
+    private String resolveNextPrompt(FurnitureVideoGenerationTaskDO generationTask) {
         String product = generationTask == null || generationTask.getProduct() == null || generationTask.getProduct().isBlank()
                 ? "家居产品" : generationTask.getProduct();
         String material = generationTask == null || generationTask.getMaterial() == null || generationTask.getMaterial().isBlank()

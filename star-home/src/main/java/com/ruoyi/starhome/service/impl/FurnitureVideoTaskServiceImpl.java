@@ -48,6 +48,7 @@ public class FurnitureVideoTaskServiceImpl implements IFurnitureVideoTaskService
 
     private static final String IMAGE2IMAGE_T8STAR_API = "image2image_t8star_api";
     private static final String VIDEO_GENERATION_STATUS_URL = "https://ai.t8star.cn/v2/videos/generations/";
+    private static final String MOCK_VIDEO_GENERATION_STATUS_URL = "http://172.17.0.4:9999/v2/videos/generations/";
 
     private final OkHttpClient httpClient = new OkHttpClient.Builder()
             .connectTimeout(5, TimeUnit.SECONDS)
