@@ -262,7 +262,6 @@ public class FurnitureVideoTaskServiceImpl implements IFurnitureVideoTaskService
 
         String responseText = queryVideoTaskProcess(taskId, apiPool.getApiKey());
         FurnitureVideoTaskDO updatedTask = furnitureVideoTaskPostProcessService.updateVideoTaskByResponse(taskId, responseText);
-        log.info("getProcessByTaskId updatedTask:{}", updatedTask);
         if (updatedTask != null) {
             try {
                 furnitureVideoTaskPostProcessService.handleFailedVideoTaskIfNeeded(updatedTask);

@@ -196,7 +196,9 @@ public class TaskApiInvokeServiceImpl implements ITaskApiInvokeService {
             if (imageUrl == null || imageUrl.isBlank()) {
                 continue;
             }
-            publicImageUrls.add(toPublicFileUrl(imageUrl));
+            String publicFileUrl = toPublicFileUrl(imageUrl);
+            publicImageUrls.add(publicFileUrl);
+            log.info("toPublicFileUrl before:{},after:{}",imageUrl,publicFileUrl);
         }
         if (publicImageUrls.isEmpty()) {
             throw new ServiceException("图片URL列表不能为空");
@@ -295,7 +297,7 @@ public class TaskApiInvokeServiceImpl implements ITaskApiInvokeService {
                 MediaType.parse("application/json; charset=utf-8"),
                 jsonBody
         );
-
+        log.info("callImageToVideoApi jsonBody:{}", jsonBody);
         Request request = new Request.Builder()
                 .url(endpoint)
                 .method("POST", body)
@@ -347,7 +349,7 @@ public class TaskApiInvokeServiceImpl implements ITaskApiInvokeService {
         failTask.setFailReason(failReason);
         failTask.setPrompt(request == null ? null : request.getPrompt());
         failTask.setImageUrl(publicImageUrls == null ? null : String.join(",", publicImageUrls));
-        failTask.setIsComplete(0);
+        failTask.setIsComplete(1);
         failTask.setProcessing(0);
         failTask.setStartTime(new Date());
         failTask.setFinishTime(new Date());

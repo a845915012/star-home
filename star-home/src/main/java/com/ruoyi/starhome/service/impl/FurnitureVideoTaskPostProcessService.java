@@ -207,6 +207,7 @@ public class FurnitureVideoTaskPostProcessService {
         retryReq.setMaterial(generationTask.getMaterial());
         retryReq.setPrompt(currentTask.getPrompt());
         retryReq.setImageUrls(resolveRetryImageUrls(generationTask, currentTask));
+        log.info("retry failed video task, retryReq={}", retryReq);
         retryReq.setConsumeConstants(ConsumeConstants.IMAGE2VIDEO);
         if (retryReq.getImageUrls() == null || retryReq.getImageUrls().isEmpty()) {
             log.warn("视频任务失败后重试被跳过, 未找到有效入参图片, taskId={}", currentTask.getTaskId());
@@ -276,7 +277,6 @@ public class FurnitureVideoTaskPostProcessService {
         nextReq.setProduct(generationTask.getProduct());
         nextReq.setMaterial(generationTask.getMaterial());
         nextReq.setPrompt(resolveNextPrompt(generationTask));
-        log.info("nextPrompt:{}",nextReq.getPrompt());
         nextReq.setConsumeConstants(ConsumeConstants.IMAGE2VIDEO);
         try {
             taskApiInvokeService.imageGenerateVideo(nextReq);
