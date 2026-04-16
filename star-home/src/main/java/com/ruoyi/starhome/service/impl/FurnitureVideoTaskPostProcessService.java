@@ -206,7 +206,8 @@ public class FurnitureVideoTaskPostProcessService {
         retryReq.setProduct(generationTask.getProduct());
         retryReq.setMaterial(generationTask.getMaterial());
         retryReq.setPrompt(currentTask.getPrompt());
-        retryReq.setImageUrls(resolveRetryImageUrls(generationTask, currentTask));
+        retryReq.setImageUrls(Collections.singletonList(currentTask.getImageUrl()));
+//        retryReq.setImageUrls(resolveRetryImageUrls(generationTask, currentTask));
         log.info("retry failed video task, retryReq={}", retryReq);
         retryReq.setConsumeConstants(ConsumeConstants.IMAGE2VIDEO);
         if (retryReq.getImageUrls() == null || retryReq.getImageUrls().isEmpty()) {
