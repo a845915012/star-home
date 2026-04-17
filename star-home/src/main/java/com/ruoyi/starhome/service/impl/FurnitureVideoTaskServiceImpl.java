@@ -138,7 +138,7 @@ public class FurnitureVideoTaskServiceImpl implements IFurnitureVideoTaskService
         successUpdate.setErrorMessage(null);
         furnitureVideoGenerationTaskMapper.updateById(successUpdate);
         furnitureUserBalanceAccountService.consume(header.getUserId(), ConsumeConstants.IMAGE2VIDEO.getPrice());
-        taskApiInvokeService.recordUsageAsync(header.getUserId(), "video_generation", "veo3.1-pro", ConsumeConstants.IMAGE2VIDEO.getPrice());
+        taskApiInvokeService.recordUsageAsync(header.getUserId(), "动态影像", "veo3.1-pro", ConsumeConstants.IMAGE2VIDEO.getPrice());
     }
 
     private String mergeLocalMp4Videos(List<String> localSegmentUrls) {

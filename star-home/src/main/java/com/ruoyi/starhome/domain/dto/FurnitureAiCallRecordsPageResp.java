@@ -7,11 +7,9 @@ import java.util.List;
 
 @Data
 public class FurnitureAiCallRecordsPageResp {
-    private List<FurnitureAiCallRecordsSummary> summary;
     private List<FurnitureAiCallRecordsDO> list;
     private Long total;
     private Integer pageNum;
     private Integer pageSize;
     private Integer pages;
-
 }
