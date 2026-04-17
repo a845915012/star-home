@@ -19,5 +19,6 @@ public interface ITaskApiInvokeService {
 
     TaskApiInvokeResponse imageGenerateVideo(ImageGenerateVideoRequest request) throws IOException;
 
-    void recordUsageAsync(Long userId, String module, String aiMode, BigDecimal totalPrice);
+
+    void completeDeferredVideoUsageRecord(Long generationTaskId, String outputFiles, String status);
 }

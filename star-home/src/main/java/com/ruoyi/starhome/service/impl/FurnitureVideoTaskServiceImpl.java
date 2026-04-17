@@ -12,7 +12,6 @@ import com.ruoyi.starhome.domain.FurnitureVideoTaskDO;
 import com.ruoyi.starhome.domain.dto.FurnitureVideoTaskPageItemResp;
 import com.ruoyi.starhome.domain.dto.FurnitureVideoTaskPageRequest;
 import com.ruoyi.starhome.domain.dto.FurnitureVideoTaskPageResp;
-import com.ruoyi.starhome.mapper.FurnitureAiCallRecordsMapper;
 import com.ruoyi.starhome.mapper.FurnitureNumberApiPoolMapper;
 import com.ruoyi.starhome.mapper.FurnitureVideoGenerationTaskMapper;
 import com.ruoyi.starhome.mapper.FurnitureVideoTaskMapper;
@@ -138,7 +137,7 @@ public class FurnitureVideoTaskServiceImpl implements IFurnitureVideoTaskService
         successUpdate.setErrorMessage(null);
         furnitureVideoGenerationTaskMapper.updateById(successUpdate);
         furnitureUserBalanceAccountService.consume(header.getUserId(), ConsumeConstants.IMAGE2VIDEO.getPrice());
-        taskApiInvokeService.recordUsageAsync(header.getUserId(), "动态影像", "veo3.1-pro", ConsumeConstants.IMAGE2VIDEO.getPrice());
+        taskApiInvokeService.completeDeferredVideoUsageRecord(header.getId(), mergedRemoteUrl, "SUCCESS");
     }
 
     private String mergeLocalMp4Videos(List<String> localSegmentUrls) {

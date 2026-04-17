@@ -92,6 +92,17 @@ public class TaskApiInvokeServiceImpl implements ITaskApiInvokeService {
 
         AiApiCallResult callResult = callAiApiByApiNumber(request);
 
+        recordUsageAsync(
+                request.getUserId(),
+                request.getModule(),
+                request.getApiNumber(),
+                request.getConsumeConstants() == null ? BigDecimal.ZERO : request.getConsumeConstants().getPrice(),
+                1,
+                request.getQuestion(),
+                request.getFilePaths() == null ? null : String.join(",", request.getFilePaths()),
+                callResult.getApiResult()
+        );
+
         // 业务完成后扣减余额
         furnitureUserBalanceAccountService.consume(request.getUserId(), request.getConsumeConstants().getPrice());
 
@@ -128,6 +139,17 @@ public class TaskApiInvokeServiceImpl implements ITaskApiInvokeService {
         validateBalanceEnough(request.getUserId(),request.getConsumeConstants().getPrice());
 
         AiApiCallResult callResult = callGeminiImageApiByApiNumber(request);
+
+        recordUsageAsync(
+                request.getUserId(),
+                request.getModule(),
+                request.getApiNumber(),
+                request.getConsumeConstants() == null ? BigDecimal.ZERO : request.getConsumeConstants().getPrice(),
+                2,
+                request.getQuestion(),
+                request.getFilePaths() == null ? null : String.join(",", request.getFilePaths()),
+                callResult.getApiResult()
+        );
 
         furnitureUserBalanceAccountService.consume(request.getUserId(), request.getConsumeConstants().getPrice());
         apiCallMonitorCacheService.recordCall(request.getUserId());
@@ -212,6 +234,9 @@ public class TaskApiInvokeServiceImpl implements ITaskApiInvokeService {
             if (taskId == null || taskId.isBlank()) {
                 taskId = getText(resultNode, "id");
             }
+            createDeferredVideoUsageRecord(userId, "动态影像", "veo3.1-pro", generationTaskId,
+                    request.getPrompt(), String.join(",", publicImageUrls),
+                    request.getConsumeConstants() == null ? BigDecimal.ZERO : request.getConsumeConstants().getPrice());
             FurnitureVideoGenerationTaskDO generationTaskDO;
             if (generationTaskId == null) {
                 generationTaskDO = new FurnitureVideoGenerationTaskDO();
@@ -369,6 +394,25 @@ public class TaskApiInvokeServiceImpl implements ITaskApiInvokeService {
         return value.isMissingNode() || value.isNull() ? null : value.asText();
     }
 
+    private Long parseLong(JsonNode node, String fieldName) {
+        JsonNode value = node.path(fieldName);
+        if (value.isMissingNode() || value.isNull()) {
+            return null;
+        }
+        if (value.isIntegralNumber()) {
+            return value.longValue();
+        }
+        String text = value.asText();
+        if (text == null || text.isBlank()) {
+            return null;
+        }
+        try {
+            return Long.parseLong(text);
+        } catch (NumberFormatException e) {
+            return null;
+        }
+    }
+
     private Integer getInteger(JsonNode node, String fieldName) {
         JsonNode value = node.path(fieldName);
         if (value.isMissingNode() || value.isNull()) {
@@ -484,7 +528,7 @@ public class TaskApiInvokeServiceImpl implements ITaskApiInvokeService {
 
             JsonNode usageNode = toUsageNodeFromChatCompletions(root.path("usage"));
             String model = root.path("model").asText("gemini-3-pro-image-preview");
-            recordUsageAsync(userId, module, model, usageNode);
+            recordUsageAsyncFromUsage(userId, module, model, usageNode);
 
             return extractChatCompletionsImageResult(root, raw);
         }
@@ -702,7 +746,7 @@ public class TaskApiInvokeServiceImpl implements ITaskApiInvokeService {
                 String aiMode = root.path("data").path("process_data").path("model_name").asText(null);
                 JsonNode usageNode = extractUsageNode(root);
                 if (usageNode != null) {
-                    recordUsageAsync(userId, module, aiMode, usageNode);
+                    recordUsageAsyncFromUsage(userId, module, aiMode, usageNode);
                 }
             }
             return extractBlockingAnswer(raw);
@@ -786,7 +830,7 @@ public class TaskApiInvokeServiceImpl implements ITaskApiInvokeService {
                         String aiMode = root.path("data").path("process_data").path("model_name").asText(null);
                         JsonNode usage = extractUsageNode(root);
                         if (usage != null) {
-                            recordUsageAsync(userId, module, aiMode, usage);
+                            recordUsageAsyncFromUsage(userId, module, aiMode, usage);
                         }
                         continue;
                     }
@@ -951,11 +995,77 @@ public class TaskApiInvokeServiceImpl implements ITaskApiInvokeService {
         return null;
     }
 
-    @Override
-    public void recordUsageAsync(Long userId, String module, String aiMode, BigDecimal totalPrice) {
+    /**
+     * 立即完成型接口的调用记录落库。
+     * 适用于图像生成文字、图像生成图像等接口，接口返回成功后即可写入完整调用记录。
+     */
+    public void recordUsageAsync(Long userId, String module, String aiMode ,BigDecimal totalPrice,Integer type,String prompt,String inputFiles,String outputFiles) {
         if (userId == null || totalPrice == null) {
             return;
         }
+        recordUsageAsyncDetailed(userId, module, aiMode, BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO,
+                totalPrice, type, null, prompt, inputFiles, outputFiles, "SUCCESS");
+    }
+
+    /**
+     * 延迟完成型视频生成调用的初始记录落库。
+     * 适用于图像生成视频场景，接口调用成功后先写入基础信息，等待后续拼接完成再补全结果字段。
+     */
+    public void createDeferredVideoUsageRecord(Long userId, String module, String aiMode, Long generationTaskId,
+                                               String prompt, String inputFiles, BigDecimal totalPrice) {
+        if (userId == null) {
+            return;
+        }
+        recordUsageAsyncDetailed(userId, module, aiMode, BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO,
+                totalPrice == null ? BigDecimal.ZERO : totalPrice, 3, generationTaskId, prompt, inputFiles, null, "PROCESSING");
+    }
+
+    /**
+     * 补全延迟完成型视频生成调用记录。
+     * 在视频拼接结束后，回填输出文件和最终状态，完成整条 AI 调用记录。
+     */
+    @Override
+    public void completeDeferredVideoUsageRecord(Long generationTaskId, String outputFiles, String status) {
+        if (generationTaskId == null) {
+            return;
+        }
+        AsyncManager.me().execute(new TimerTask() {
+            @Override
+            public void run() {
+                FurnitureAiCallRecordsDO record = furnitureAiCallRecordsMapper.selectOne(new LambdaQueryWrapper<FurnitureAiCallRecordsDO>()
+                        .eq(FurnitureAiCallRecordsDO::getGenerationTaskId, generationTaskId)
+                        .last("limit 1"));
+                if (record == null) {
+                    return;
+                }
+                FurnitureAiCallRecordsDO update = new FurnitureAiCallRecordsDO();
+                update.setId(record.getId());
+                update.setOutputFiles(outputFiles);
+                update.setStatus(status);
+                furnitureAiCallRecordsMapper.updateById(update);
+            }
+        });
+    }
+
+    private void recordUsageAsyncFromUsage(Long userId, String module, String aiMode, JsonNode usageNode) {
+        if (userId == null || usageNode == null || usageNode.isNull()) {
+            return;
+        }
+        BigDecimal tokenIn = parseFirstNonNull(usageNode, "prompt_tokens", "input_tokens");
+        BigDecimal tokenOut = parseFirstNonNull(usageNode, "completion_tokens", "output_tokens");
+        BigDecimal totalToken = parseFirstNonNull(usageNode, "total_tokens");
+        if (totalToken == null && tokenIn != null && tokenOut != null) {
+            totalToken = tokenIn.add(tokenOut);
+        }
+        BigDecimal totalPrice = parseFirstNonNull(usageNode, "total_price", "price", "cost");
+
+        recordUsageAsyncDetailed(userId, module, aiMode, defaultZero(tokenIn), defaultZero(tokenOut), defaultZero(totalToken),
+                defaultZero(totalPrice), null, null, null, null, null, "SUCCESS");
+    }
+
+    private void recordUsageAsyncDetailed(Long userId, String module, String aiMode,
+                                          BigDecimal tokenIn, BigDecimal tokenOut, BigDecimal totalToken, BigDecimal cost,
+                                          Integer type, Long generationTaskId, String prompt, String inputFiles, String outputFiles, String status) {
         AsyncManager.me().execute(new TimerTask() {
             @Override
             public void run() {
@@ -963,22 +1073,20 @@ public class TaskApiInvokeServiceImpl implements ITaskApiInvokeService {
                 record.setUserId(userId);
                 record.setModule(module);
                 record.setAiMode(aiMode);
-                record.setTokenIn(BigDecimal.ZERO);
-                record.setTokenOut(BigDecimal.ZERO);
-                record.setTotalToken(BigDecimal.ZERO);
-                record.setCost(totalPrice);
+                record.setTokenIn(tokenIn);
+                record.setTokenOut(tokenOut);
+                record.setTotalToken(totalToken);
+                record.setCost(cost);
+                record.setType(type);
+                record.setGenerationTaskId(generationTaskId);
+                record.setPrompt(prompt);
+                record.setInputFiles(inputFiles);
+                record.setOutputFiles(outputFiles);
+                record.setStatus(status);
                 record.setCreateTime(new Date());
                 furnitureAiCallRecordsMapper.insert(record);
             }
         });
-    }
-
-    private void recordUsageAsync(Long userId, String module, String aiMode, JsonNode usageNode) {
-        if (userId == null || usageNode == null || usageNode.isNull()) {
-            return;
-        }
-        BigDecimal totalPrice = parseBigDecimal(usageNode.path("total_price"));
-        recordUsageAsync(userId, module, aiMode, totalPrice);
     }
 
     private BigDecimal parseBigDecimal(JsonNode node) {
@@ -997,6 +1105,19 @@ public class TaskApiInvokeServiceImpl implements ITaskApiInvokeService {
         } catch (NumberFormatException ignore) {
             return null;
         }
+    }
+
+    private BigDecimal parseFirstNonNull(JsonNode node, String... fieldNames) {
+        if (node == null || fieldNames == null) {
+            return null;
+        }
+        for (String fieldName : fieldNames) {
+            BigDecimal value = parseBigDecimal(node.path(fieldName));
+            if (value != null) {
+                return value;
+            }
+        }
+        return null;
     }
 
     /**
@@ -1130,4 +1251,7 @@ public class TaskApiInvokeServiceImpl implements ITaskApiInvokeService {
         }
     }
 
+    private BigDecimal defaultZero(BigDecimal value) {
+        return value == null ? BigDecimal.ZERO : value;
+    }
 }
