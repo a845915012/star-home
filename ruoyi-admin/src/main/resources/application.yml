@@ -145,6 +145,7 @@ xss:
 # star-home 业务配置
 starhome:
   public-file-base-url: http://47.112.126.153
+  port: 6888
   video-task:
     # 视频任务处理锁超时分钟数（超过该时间会在下次调度时回收锁）
     lock-expire-minutes: 10

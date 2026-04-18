@@ -55,6 +55,25 @@ public class FurnitureAiCallRecordsServiceImpl implements IFurnitureAiCallRecord
         return resp;
     }
 
+    @Override
+    public FurnitureAiCallRecordsPageResp selectFurnitureAiCallRecordsHistoryPage(Long userId, Integer pageNum, Integer pageSize) {
+        LambdaQueryWrapper<FurnitureAiCallRecordsDO> query = new LambdaQueryWrapper<FurnitureAiCallRecordsDO>()
+                .eq(userId != null, FurnitureAiCallRecordsDO::getUserId, userId)
+                .orderByDesc(FurnitureAiCallRecordsDO::getId);
+
+        PageHelper.startPage(pageNum, pageSize);
+        List<FurnitureAiCallRecordsDO> records = furnitureAiCallRecordsMapper.selectList(query);
+        PageInfo<FurnitureAiCallRecordsDO> pageInfo = new PageInfo<>(records);
+
+        FurnitureAiCallRecordsPageResp resp = new FurnitureAiCallRecordsPageResp();
+        resp.setList(records);
+        resp.setTotal(pageInfo.getTotal());
+        resp.setPageNum(pageInfo.getPageNum());
+        resp.setPageSize(pageInfo.getPageSize());
+        resp.setPages(pageInfo.getPages());
+        return resp;
+    }
+
 
     private LambdaQueryWrapper<FurnitureAiCallRecordsDO> createBaseQuery(Long userId, String timeRange) {
         LambdaQueryWrapper<FurnitureAiCallRecordsDO> query = new LambdaQueryWrapper<FurnitureAiCallRecordsDO>()

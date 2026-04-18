@@ -41,4 +41,15 @@ public class FurnitureAiCallRecordsController extends BaseController {
                            @RequestParam("pageSize") Integer pageSize) {
         return success(furnitureAiCallRecordsService.selectFurnitureAiCallRecordsList(getUserId(), timeRange, pageNum, pageSize));
     }
+
+    @Operation(summary = "分页查询历史记录", description = "查询当前登录用户的AI调用历史记录")
+    @Parameters({
+            @Parameter(name = "pageNum", description = "页码", example = "1"),
+            @Parameter(name = "pageSize", description = "每页条数", example = "10")
+    })
+    @GetMapping("/history/page")
+    public AjaxResult historyPage(@RequestParam("pageNum") Integer pageNum,
+                                  @RequestParam("pageSize") Integer pageSize) {
+        return success(furnitureAiCallRecordsService.selectFurnitureAiCallRecordsHistoryPage(getUserId(), pageNum, pageSize));
+    }
 }

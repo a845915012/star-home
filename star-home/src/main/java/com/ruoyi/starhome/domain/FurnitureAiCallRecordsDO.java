@@ -58,6 +58,9 @@ public class FurnitureAiCallRecordsDO implements Serializable {
     /** 输出文件url */
     private String outputFiles;
 
+    /** 输出内容 */
+    private String ouputContent;
+
     /** 状态 */
     private String status;
 

@@ -13,4 +13,9 @@ public class AiApiCallResult implements Serializable {
 
     private BigDecimal callCost;
     private String apiResult;
+
+    /**
+     * 模型返回 usage 信息（如 prompt_tokens/completion_tokens/total_tokens/total_price）。
+     */
+    private String usageRaw;
 }

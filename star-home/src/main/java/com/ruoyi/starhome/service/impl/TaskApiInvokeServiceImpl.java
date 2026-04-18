@@ -9,11 +9,7 @@ import com.ruoyi.common.config.RuoYiConfig;
 import com.ruoyi.common.exception.ServiceException;
 import com.ruoyi.framework.security.util.SecurityFrameworkUtils;
 import com.ruoyi.starhome.domain.*;
-import com.ruoyi.starhome.domain.dto.AiApiCallResult;
-import com.ruoyi.starhome.domain.dto.FileInfo;
-import com.ruoyi.starhome.domain.dto.ImageGenerateVideoRequest;
-import com.ruoyi.starhome.domain.dto.TaskApiInvokeRequest;
-import com.ruoyi.starhome.domain.dto.TaskApiInvokeResponse;
+import com.ruoyi.starhome.domain.dto.*;
 import com.ruoyi.starhome.mapper.*;
 import com.ruoyi.starhome.service.IApiCallMonitorCacheService;
 import com.ruoyi.starhome.service.IFurnitureUserBalanceAccountService;
@@ -24,6 +20,7 @@ import lombok.extern.slf4j.Slf4j;
 import okhttp3.*;
 import okio.BufferedSource;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
@@ -58,9 +55,6 @@ public class TaskApiInvokeServiceImpl implements ITaskApiInvokeService {
     private final Map<Long, SseEmitter> emitterMap = new ConcurrentHashMap<>();
 
     @Autowired
-    private FurnitureUserPackageRightsMapper furnitureUserPackageRightsMapper;
-
-    @Autowired
     private FurnitureNumberApiPoolMapper furnitureNumberApiPoolMapper;
 
     @Autowired
@@ -81,6 +75,11 @@ public class TaskApiInvokeServiceImpl implements ITaskApiInvokeService {
     @Autowired
     private StarhomeFileUrlUtils starhomeFileUrlUtils;
 
+    @Value("${starhome.public-file-base-url}")
+    private String serverUrl;
+    @Value("${starhome.port}")
+    private String serverPort;
+
     @Override
     @Transactional(rollbackFor = Exception.class)
     public TaskApiInvokeResponse invokeTaskApi(TaskApiInvokeRequest request) {
@@ -92,16 +91,7 @@ public class TaskApiInvokeServiceImpl implements ITaskApiInvokeService {
 
         AiApiCallResult callResult = callAiApiByApiNumber(request);
 
-        recordUsageAsync(
-                request.getUserId(),
-                request.getModule(),
-                request.getApiNumber(),
-                request.getConsumeConstants() == null ? BigDecimal.ZERO : request.getConsumeConstants().getPrice(),
-                1,
-                request.getQuestion(),
-                request.getFilePaths() == null ? null : String.join(",", request.getFilePaths()),
-                callResult.getApiResult()
-        );
+        recordUsageAsyncFromTaskApi(request, callResult);
 
         // 业务完成后扣减余额
         furnitureUserBalanceAccountService.consume(request.getUserId(), request.getConsumeConstants().getPrice());
@@ -140,15 +130,15 @@ public class TaskApiInvokeServiceImpl implements ITaskApiInvokeService {
 
         AiApiCallResult callResult = callGeminiImageApiByApiNumber(request);
 
-        recordUsageAsync(
+        recordUsageAsyncFromGeminiImage(
                 request.getUserId(),
                 request.getModule(),
-                request.getApiNumber(),
-                request.getConsumeConstants() == null ? BigDecimal.ZERO : request.getConsumeConstants().getPrice(),
-                2,
+                "gemini-3-pro-image-preview",
+                request.getConsumeConstants().getPrice(),
                 request.getQuestion(),
                 request.getFilePaths() == null ? null : String.join(",", request.getFilePaths()),
-                callResult.getApiResult()
+                callResult.getApiResult(),
+                callResult.getUsageRaw()
         );
 
         furnitureUserBalanceAccountService.consume(request.getUserId(), request.getConsumeConstants().getPrice());
@@ -394,25 +384,6 @@ public class TaskApiInvokeServiceImpl implements ITaskApiInvokeService {
         return value.isMissingNode() || value.isNull() ? null : value.asText();
     }
 
-    private Long parseLong(JsonNode node, String fieldName) {
-        JsonNode value = node.path(fieldName);
-        if (value.isMissingNode() || value.isNull()) {
-            return null;
-        }
-        if (value.isIntegralNumber()) {
-            return value.longValue();
-        }
-        String text = value.asText();
-        if (text == null || text.isBlank()) {
-            return null;
-        }
-        try {
-            return Long.parseLong(text);
-        } catch (NumberFormatException e) {
-            return null;
-        }
-    }
-
     private Integer getInteger(JsonNode node, String fieldName) {
         JsonNode value = node.path(fieldName);
         if (value.isMissingNode() || value.isNull()) {
@@ -451,18 +422,27 @@ public class TaskApiInvokeServiceImpl implements ITaskApiInvokeService {
         AiApiCallResult result = new AiApiCallResult();
         result.setCallCost(BigDecimal.ZERO);
         try{
-            String apiResult = generateByChatCompletions("gemini-3-pro-image-preview",request.getQuestion(), filePaths, apiPool.getApiUrl(), apiPool.getApiKey(), request.getModule(), request.getUserId());
+            String[] usageHolder = new String[1];
+            String apiResult = generateByChatCompletions(
+                    "gemini-3-pro-image-preview",
+                    request.getQuestion(),
+                    filePaths,
+                    apiPool.getApiUrl(),
+                    apiPool.getApiKey(),
+                    usageHolder
+            );
             result.setApiResult(apiResult);
+            result.setUsageRaw(usageHolder[0]);
         }catch (IOException e){
             throw new IOException("图生图" + e.getMessage());
         }
         return result;
     }
 
-    private String generateByChatCompletions(String model,String question, List<String> filePaths, String url, String apiKey, String module, Long userId) throws IOException {
+    private String generateByChatCompletions(String model,String question, List<String> filePaths, String url, String apiKey, String[] usageHolder) throws IOException {
         ObjectNode payload = buildChatCompletionsImagePayload(model,question, filePaths);
         Request request = buildChatCompletionsImageRequest(url, apiKey, payload);
-        return executeChatCompletionsImageBlocking(request, userId, module);
+        return executeChatCompletionsImageBlocking(request, usageHolder);
     }
 
     private ObjectNode buildChatCompletionsImagePayload(String model,String question, List<String> filePaths) {
@@ -512,7 +492,7 @@ public class TaskApiInvokeServiceImpl implements ITaskApiInvokeService {
                 .build();
     }
 
-    private String executeChatCompletionsImageBlocking(Request request, Long userId, String module) throws IOException {
+    private String executeChatCompletionsImageBlocking(Request request, String[] usageHolder) throws IOException {
         try (Response response = client.newCall(request).execute()) {
             if (!response.isSuccessful()) {
                 ResponseBody errorBody = response.body();
@@ -523,13 +503,11 @@ public class TaskApiInvokeServiceImpl implements ITaskApiInvokeService {
                 throw new IOException("调用失败: 响应体为空");
             }
             String raw = responseBody.string();
-            log.info("raw:{}", raw);
             JsonNode root = mapper.readTree(raw);
-
-            JsonNode usageNode = toUsageNodeFromChatCompletions(root.path("usage"));
-            String model = root.path("model").asText("gemini-3-pro-image-preview");
-            recordUsageAsyncFromUsage(userId, module, model, usageNode);
-
+            if (usageHolder != null && usageHolder.length > 0) {
+                JsonNode usageNode = toUsageNodeFromChatCompletions(root.path("usage"));
+                usageHolder[0] = usageNode.toString();
+            }
             return extractChatCompletionsImageResult(root, raw);
         }
     }
@@ -539,8 +517,6 @@ public class TaskApiInvokeServiceImpl implements ITaskApiInvokeService {
         usageNode.put("prompt_tokens", usage.path("prompt_tokens").asText("0"));
         usageNode.put("completion_tokens", usage.path("completion_tokens").asText("0"));
         usageNode.put("total_tokens", usage.path("total_tokens").asText("0"));
-        // 按新规则固定金额
-        usageNode.put("total_price", "0.2025");
         return usageNode;
     }
 
@@ -625,7 +601,6 @@ public class TaskApiInvokeServiceImpl implements ITaskApiInvokeService {
 
     /**
      * 按 apiNumber 查询对应接口配置。
-     * 说明：这里只做配置查询占位，后续真实AI调用业务由你补充。
      */
     private AiApiCallResult callAiApiByApiNumber(TaskApiInvokeRequest request) {
         String user = String.valueOf(request.getUserId());
@@ -641,30 +616,24 @@ public class TaskApiInvokeServiceImpl implements ITaskApiInvokeService {
 
         AiApiCallResult result = new AiApiCallResult();
         result.setCallCost(BigDecimal.ZERO);
-        List<String> fileIds = null;
-        try {
-            List<String> filePaths = request.getFilePaths();
-            if (filePaths == null || filePaths.isEmpty()) {
-                throw new ServiceException("文件地址不能为空");
-            }
-
-            List<FileInfo> fileInfos = new ArrayList<>();
-            for (String filePath : filePaths) {
-                File file = resolveProfileFile(filePath);
-                fileInfos.add(new FileInfo(
-                        readFileBytes(file),
-                        file.getName(),
-                        resolveMimeType(file)
-                ));
-            }
-            fileIds = uploadMultipleFiles(fileInfos, user, apiPool.getApiUrl(), apiPool.getApiKey());
-        } catch (IOException e) {
-            log.error("上传图片至dify失败:{}", e.getMessage());
-            throw new ServiceException("上传图片至dify失败");
+        List<String> filePaths = request.getFilePaths();
+        if (filePaths == null || filePaths.isEmpty()) {
+            throw new ServiceException("文件地址不能为空");
         }
+
         try {
             boolean useSse = Boolean.TRUE.equals(request.getUseSse());
-            result.setApiResult(runWorkflowWithMultipleFiles(request.getQuestion(), fileIds, user, apiPool.getApiUrl(), apiPool.getApiKey(), useSse,request.getModule()));
+            String[] usageHolder = new String[1];
+            result.setApiResult(runWorkflowWithMultipleFiles(
+                    request.getQuestion(),
+                    filePaths,
+                    user,
+                    apiPool.getApiUrl(),
+                    apiPool.getApiKey(),
+                    useSse,
+                    usageHolder
+            ));
+            result.setUsageRaw(usageHolder[0]);
         } catch (IOException e) {
             log.error("获取工作流结果异常:{}",e.getMessage());
             throw new ServiceException("获取工作流结果异常");
@@ -673,11 +642,13 @@ public class TaskApiInvokeServiceImpl implements ITaskApiInvokeService {
     }
 
     /**
-     * 调用工作流，传入多个文件ID（由 useSse 参数决定是否走SSE）。
+     * 调用工作流，传入多个文件地址（由 useSse 参数决定是否走 SSE）。
+     * 请求体改为 OpenAI 风格的 messages[].content[] 多模态结构。
      * useSse = true  -> response_mode=streaming + 通过SseEmitter推送
      * useSse = false -> response_mode=blocking  + 直接返回HTTP结果
      */
-    public String runWorkflowWithMultipleFiles(String question, List<String> fileIds, String user, String url, String apiKey, boolean useSse, String module) throws IOException {
+    public String runWorkflowWithMultipleFiles(String question, List<String> filePaths, String user, String url, String apiKey,
+                                               boolean useSse, String[] usageHolder) throws IOException {
         Long userId = Long.valueOf(user);
         SseEmitter emitter = emitterMap.get(userId);
 
@@ -685,52 +656,66 @@ public class TaskApiInvokeServiceImpl implements ITaskApiInvokeService {
             throw new ServiceException("未找到userId对应的SSE连接: " + user + "，请先调用 /starhome/task/stream 建立连接");
         }
 
-        ObjectNode root = buildChatMessagesPayload(question, fileIds, user, useSse ? "streaming" : "blocking");
-        Request request = buildChatMessagesRequest(url, apiKey, root);
+        ObjectNode root = buildChatCompletionsMultiModalPayload(question, filePaths, useSse ? "streaming" : "blocking");
+        Request request = buildChatCompletionsMultiModalRequest(url, apiKey, root);
 
         if (!useSse) {
-            return executeBlocking(request, userId, module);
+            return executeBlocking(request, usageHolder);
         }
-        return executeStreaming(request, emitter, userId, module);
+        return executeStreaming(request, emitter, userId, usageHolder);
     }
 
-    private ObjectNode buildChatMessagesPayload(String question, List<String> fileIds, String user, String responseMode) {
-        ObjectNode inputs = mapper.createObjectNode();
-        ArrayNode filesArray = mapper.createArrayNode();
-        for (String fileId : fileIds) {
-            ObjectNode fileObj = mapper.createObjectNode();
-            fileObj.put("type", "image");
-            fileObj.put("transfer_method", "local_file");
-            fileObj.put("upload_file_id", fileId);
-            filesArray.add(fileObj);
-        }
-        // 必须与开始节点中的变量名一致
-        inputs.set("imageFiles", filesArray);
-        inputs.put("question", question);
-
+    private ObjectNode buildChatCompletionsMultiModalPayload(String question, List<String> filePaths, String responseMode) {
         ObjectNode root = mapper.createObjectNode();
-        root.set("inputs", inputs);
-        root.put("user", user);
-        root.put("query", question);
-        root.put("conversation_id", "");
-        root.put("response_mode", responseMode);
+        root.put("model", "gpt-4o-all");
+        root.put("stream", "streaming".equals(responseMode));
+
+        ArrayNode messages = mapper.createArrayNode();
+        ObjectNode userMessage = mapper.createObjectNode();
+        userMessage.put("role", "user");
+
+        ArrayNode content = mapper.createArrayNode();
+        ObjectNode textPart = mapper.createObjectNode();
+        textPart.put("type", "text");
+        textPart.put("text", question == null ? "" : question);
+        content.add(textPart);
+
+        for (String filePath : filePaths) {
+            if (filePath == null || filePath.isBlank()) {
+                continue;
+            }
+            ObjectNode imageUrl = mapper.createObjectNode();
+            imageUrl.put("url", toPublicFileUrl(filePath));
+
+            ObjectNode imagePart = mapper.createObjectNode();
+            imagePart.put("type", "image_url");
+            imagePart.set("image_url", imageUrl);
+            content.add(imagePart);
+        }
+
+        userMessage.set("content", content);
+        messages.add(userMessage);
+        root.set("messages", messages);
         return root;
     }
 
-    private Request buildChatMessagesRequest(String url, String apiKey, ObjectNode payload) throws IOException {
+    private Request buildChatCompletionsMultiModalRequest(String url, String apiKey, ObjectNode payload) throws IOException {
         String jsonBody = mapper.writeValueAsString(payload);
         RequestBody body = RequestBody.create(
                 MediaType.parse("application/json; charset=utf-8"),
                 jsonBody
         );
+        String endpoint = trimEndSlash(url) + "/v1/chat/completions";
         return new Request.Builder()
-                .url(url + "/chat-messages")
-                .header("Authorization", "Bearer " + apiKey)
-                .post(body)
+                .url(endpoint)
+                .method("POST", body)
+                .addHeader("Accept", "application/json")
+                .addHeader("Authorization", "Bearer " + apiKey)
+                .addHeader("Content-Type", "application/json")
                 .build();
     }
 
-    private String executeBlocking(Request request,Long userId, String module) throws IOException {
+    private String executeBlocking(Request request, String[] usageHolder) throws IOException {
         try (Response response = client.newCall(request).execute()) {
             if (!response.isSuccessful()) {
                 ResponseBody errorBody = response.body();
@@ -742,11 +727,10 @@ public class TaskApiInvokeServiceImpl implements ITaskApiInvokeService {
             }
             String raw = responseBody.string();
             JsonNode root = parseStreamingJson(raw);
-            if (root != null) {
-                String aiMode = root.path("data").path("process_data").path("model_name").asText(null);
+            if (root != null && usageHolder != null && usageHolder.length > 0) {
                 JsonNode usageNode = extractUsageNode(root);
                 if (usageNode != null) {
-                    recordUsageAsyncFromUsage(userId, module, aiMode, usageNode);
+                    usageHolder[0] = usageNode.toString();
                 }
             }
             return extractBlockingAnswer(raw);
@@ -759,6 +743,10 @@ public class TaskApiInvokeServiceImpl implements ITaskApiInvokeService {
         }
         try {
             JsonNode root = mapper.readTree(rawJsonOrText);
+            String chatCompletionContent = extractChatCompletionContent(root);
+            if (!chatCompletionContent.isBlank()) {
+                return chatCompletionContent;
+            }
             JsonNode answer = root.get("answer");
             if (answer != null && !answer.isNull()) {
                 return answer.asText();
@@ -777,7 +765,7 @@ public class TaskApiInvokeServiceImpl implements ITaskApiInvokeService {
         }
     }
 
-    private String executeStreaming(Request request, SseEmitter emitter, Long userId, String module) throws IOException {
+    private String executeStreaming(Request request, SseEmitter emitter, Long userId, String[] usageHolder) throws IOException {
         try (Response response = client.newCall(request).execute()) {
             if (!response.isSuccessful()) {
                 ResponseBody errorBody = response.body();
@@ -787,16 +775,20 @@ public class TaskApiInvokeServiceImpl implements ITaskApiInvokeService {
             if (responseBody == null) {
                 throw new IOException("工作流调用失败: 响应体为空");
             }
-            String result = streamWorkflowResult(responseBody, emitter, userId, module);
-            emitter.complete();
-            return result;
+            return streamWorkflowResult(responseBody, emitter, usageHolder);
         } finally {
-            emitterMap.remove(userId);
+            SseEmitter remove = emitterMap.remove(userId);
+            if (remove != null) {
+                remove.complete();
+            } else {
+                emitter.complete();
+            }
         }
     }
 
-    private String streamWorkflowResult(ResponseBody responseBody, SseEmitter emitter, Long userId, String module) throws IOException {
+    private String streamWorkflowResult(ResponseBody responseBody, SseEmitter emitter, String[] usageHolder) throws IOException {
         StringBuilder fullResult = new StringBuilder();
+        boolean started = false;
         try (BufferedSource source = responseBody.source()) {
             while (!source.exhausted()) {
                 String line = source.readUtf8Line();
@@ -810,7 +802,6 @@ public class TaskApiInvokeServiceImpl implements ITaskApiInvokeService {
                         doneEvent.put("event", "done");
                         doneEvent.put("data", "[DONE]");
                         emitter.send(SseEmitter.event().data(doneEvent));
-                        emitter.complete();
                         break;
                     }
 
@@ -822,22 +813,21 @@ public class TaskApiInvokeServiceImpl implements ITaskApiInvokeService {
                         continue;
                     }
 
-                    if (hasNodeFinished) {
-                        JsonNode root = parseStreamingJson(data);
-                        if (root == null) {
-                            continue;
-                        }
-                        String aiMode = root.path("data").path("process_data").path("model_name").asText(null);
+                    JsonNode root = parseStreamingJson(data);
+                    if (root != null) {
                         JsonNode usage = extractUsageNode(root);
-                        if (usage != null) {
-                            recordUsageAsyncFromUsage(userId, module, aiMode, usage);
+                        boolean finishStop = isFinishReasonStop(root);
+                        if (finishStop && usage != null && usageHolder != null && usageHolder.length > 0) {
+                            usageHolder[0] = usage.toString();
                         }
+                    }
+
+                    if (hasNodeFinished) {
                         continue;
                     }
 
                     String chunk = extractStreamingChunkFast(data, hasAnswer, hasDelta);
                     if (chunk == null) {
-                        JsonNode root = parseStreamingJson(data);
                         if (root == null) {
                             continue;
                         }
@@ -845,6 +835,19 @@ public class TaskApiInvokeServiceImpl implements ITaskApiInvokeService {
                     }
 
                     if (!chunk.isBlank()) {
+                        String normalizedChunk = chunk.trim();
+                        if (!started) {
+                            if ("content".equalsIgnoreCase(normalizedChunk)) {
+                                continue;
+                            }
+                            if (normalizedChunk.toLowerCase().startsWith("content")) {
+                                chunk = normalizedChunk.substring("content".length()).trim();
+                                if (chunk.isBlank()) {
+                                    continue;
+                                }
+                            }
+                            started = true;
+                        }
                         fullResult.append(chunk);
                         emitter.send(SseEmitter.event().data(chunk));
                     }
@@ -868,9 +871,105 @@ public class TaskApiInvokeServiceImpl implements ITaskApiInvokeService {
         }
     }
 
+    private String extractChatCompletionContent(JsonNode root) {
+        if (root == null || root.isNull()) {
+            return "";
+        }
+        JsonNode choices = root.path("choices");
+        if (!choices.isArray() || choices.isEmpty()) {
+            return "";
+        }
+        JsonNode choice0 = choices.get(0);
+        if (choice0 == null || choice0.isNull()) {
+            return "";
+        }
+        JsonNode messageContent = choice0.path("message").path("content");
+        if (messageContent != null && !messageContent.isMissingNode() && !messageContent.isNull()) {
+            if (messageContent.isTextual()) {
+                return messageContent.asText("");
+            }
+            if (messageContent.isArray()) {
+                return extractContentArrayText(messageContent);
+            }
+        }
+        JsonNode deltaContent = choice0.path("delta").path("content");
+        if (deltaContent != null && !deltaContent.isMissingNode() && !deltaContent.isNull()) {
+            if (deltaContent.isTextual()) {
+                return deltaContent.asText("");
+            }
+            if (deltaContent.isArray()) {
+                return extractContentArrayText(deltaContent);
+            }
+        }
+        JsonNode delta = choice0.path("delta");
+        if (delta != null && !delta.isMissingNode() && !delta.isNull()) {
+            JsonNode content = delta.get("content");
+            if (content != null && !content.isNull()) {
+                return content.asText("");
+            }
+        }
+        return "";
+    }
+
+    private String extractChatCompletionDeltaContent(JsonNode root) {
+        if (root == null || root.isNull()) {
+            return "";
+        }
+        JsonNode choices = root.path("choices");
+        if (!choices.isArray() || choices.isEmpty()) {
+            return "";
+        }
+        JsonNode choice0 = choices.get(0);
+        if (choice0 == null || choice0.isNull()) {
+            return "";
+        }
+        JsonNode deltaContent = choice0.path("delta").path("content");
+        if (deltaContent != null && !deltaContent.isMissingNode() && !deltaContent.isNull()) {
+            if (deltaContent.isTextual()) {
+                return deltaContent.asText("");
+            }
+            if (deltaContent.isArray()) {
+                return extractContentArrayText(deltaContent);
+            }
+        }
+        JsonNode delta = choice0.path("delta");
+        if (delta != null && !delta.isMissingNode() && !delta.isNull()) {
+            JsonNode content = delta.get("content");
+            if (content != null && !content.isNull()) {
+                return content.asText("");
+            }
+        }
+        return "";
+    }
+
+    private String extractContentArrayText(JsonNode contentArray) {
+        if (contentArray == null || !contentArray.isArray()) {
+            return "";
+        }
+        StringBuilder sb = new StringBuilder();
+        for (JsonNode item : contentArray) {
+            if (item == null || item.isNull()) {
+                continue;
+            }
+            String type = item.path("type").asText("");
+            if ("text".equals(type)) {
+                sb.append(item.path("text").asText(""));
+                continue;
+            }
+            if ("output_text".equals(type)) {
+                sb.append(item.path("text").asText(""));
+            }
+        }
+        return sb.toString();
+    }
+
     private String extractStreamingChunk(JsonNode root) {
         if (root == null || root.isNull()) {
             return "";
+        }
+        String chatCompletionContent = extractChatCompletionDeltaContent(root);
+        if (!chatCompletionContent.isBlank()) {
+            return chatCompletionContent;
         }
         JsonNode answer = root.get("answer");
         if (answer != null && !answer.isNull()) {
@@ -886,6 +985,13 @@ public class TaskApiInvokeServiceImpl implements ITaskApiInvokeService {
     private String extractStreamingChunkFast(String dataLine, boolean hasAnswer, boolean hasDelta) {
         if (dataLine == null || dataLine.isBlank()) {
             return "";
+        }
+        JsonNode root = parseStreamingJson(dataLine);
+        if (root != null) {
+            String chatCompletionContent = extractChatCompletionContent(root);
+            if (!chatCompletionContent.isBlank()) {
+                return chatCompletionContent;
+            }
         }
         String key = hasAnswer ? "\"answer\"" : "\"delta\"";
         int keyIndex = dataLine.indexOf(key);
@@ -995,16 +1101,17 @@ public class TaskApiInvokeServiceImpl implements ITaskApiInvokeService {
         return null;
     }
 
-    /**
-     * 立即完成型接口的调用记录落库。
-     * 适用于图像生成文字、图像生成图像等接口，接口返回成功后即可写入完整调用记录。
-     */
-    public void recordUsageAsync(Long userId, String module, String aiMode ,BigDecimal totalPrice,Integer type,String prompt,String inputFiles,String outputFiles) {
-        if (userId == null || totalPrice == null) {
-            return;
+    private boolean isFinishReasonStop(JsonNode root) {
+        if (root == null || root.isNull()) {
+            return false;
         }
-        recordUsageAsyncDetailed(userId, module, aiMode, BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO,
-                totalPrice, type, null, prompt, inputFiles, outputFiles, "SUCCESS");
+        JsonNode choices = root.path("choices");
+        if (!choices.isArray() || choices.isEmpty()) {
+            return false;
+        }
+        JsonNode finishReason = choices.get(0).path("finish_reason");
+        return finishReason != null && !finishReason.isNull()
+                && "stop".equalsIgnoreCase(finishReason.asText());
     }
 
     /**
@@ -1017,7 +1124,7 @@ public class TaskApiInvokeServiceImpl implements ITaskApiInvokeService {
             return;
         }
         recordUsageAsyncDetailed(userId, module, aiMode, BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO,
-                totalPrice == null ? BigDecimal.ZERO : totalPrice, 3, generationTaskId, prompt, inputFiles, null, "PROCESSING");
+                totalPrice == null ? BigDecimal.ZERO : totalPrice, 3, generationTaskId, prompt, inputFiles, null, null, "PROCESSING");
     }
 
     /**
@@ -1047,25 +1154,86 @@ public class TaskApiInvokeServiceImpl implements ITaskApiInvokeService {
         });
     }
 
-    private void recordUsageAsyncFromUsage(Long userId, String module, String aiMode, JsonNode usageNode) {
-        if (userId == null || usageNode == null || usageNode.isNull()) {
+    private void recordUsageAsyncFromTaskApi(TaskApiInvokeRequest request, AiApiCallResult callResult) {
+        if (request == null || callResult == null) {
             return;
         }
-        BigDecimal tokenIn = parseFirstNonNull(usageNode, "prompt_tokens", "input_tokens");
-        BigDecimal tokenOut = parseFirstNonNull(usageNode, "completion_tokens", "output_tokens");
+
+        JsonNode usageNode = null;
+        String usageRaw = callResult.getUsageRaw();
+        if (usageRaw != null && !usageRaw.isBlank()) {
+            try {
+                usageNode = mapper.readTree(usageRaw);
+            } catch (Exception ignore) {
+                usageNode = null;
+            }
+        }
+
+        BigDecimal tokenIn = extractInputToken(usageNode);
+        BigDecimal tokenOut = extractOutputToken(usageNode);
+        BigDecimal totalToken = parseFirstNonNull(usageNode, "total_tokens");
+        if (totalToken == null && tokenIn != null && tokenOut != null) {
+            totalToken = tokenIn.add(tokenOut);
+        }
+        BigDecimal totalPrice = parseFirstNonNull(usageNode, "total_price", "price", "cost");
+        recordUsageAsyncDetailed(
+                request.getUserId(),
+                request.getModule(),
+                "gpt-4o-all",
+                defaultZero(tokenIn),
+                defaultZero(tokenOut),
+                defaultZero(totalToken),
+                totalPrice == null ? request.getConsumeConstants().getPrice() : totalPrice,
+                1,
+                null,
+                request.getQuestion(),
+                request.getFilePaths() == null ? null : String.join(",", request.getFilePaths()),
+                null,
+                callResult.getApiResult(),
+                "SUCCESS"
+        );
+    }
+
+    private void recordUsageAsyncFromGeminiImage(Long userId, String module, String aiMode, BigDecimal fallbackCost,
+                                                  String prompt, String inputFiles, String outputFiles, String usageRaw) {
+        JsonNode usageNode = null;
+        if (usageRaw != null && !usageRaw.isBlank()) {
+            try {
+                usageNode = mapper.readTree(usageRaw);
+            } catch (Exception ignore) {
+                usageNode = null;
+            }
+        }
+
+        BigDecimal tokenIn = extractInputToken(usageNode);
+        BigDecimal tokenOut = extractOutputToken(usageNode);
         BigDecimal totalToken = parseFirstNonNull(usageNode, "total_tokens");
         if (totalToken == null && tokenIn != null && tokenOut != null) {
             totalToken = tokenIn.add(tokenOut);
         }
         BigDecimal totalPrice = parseFirstNonNull(usageNode, "total_price", "price", "cost");
 
-        recordUsageAsyncDetailed(userId, module, aiMode, defaultZero(tokenIn), defaultZero(tokenOut), defaultZero(totalToken),
-                defaultZero(totalPrice), null, null, null, null, null, "SUCCESS");
+        recordUsageAsyncDetailed(
+                userId,
+                module,
+                aiMode,
+                defaultZero(tokenIn),
+                defaultZero(tokenOut),
+                defaultZero(totalToken),
+                totalPrice == null ? defaultZero(fallbackCost) : totalPrice,
+                2,
+                null,
+                prompt,
+                inputFiles,
+                outputFiles,
+                null,
+                "SUCCESS"
+        );
     }
 
     private void recordUsageAsyncDetailed(Long userId, String module, String aiMode,
                                           BigDecimal tokenIn, BigDecimal tokenOut, BigDecimal totalToken, BigDecimal cost,
-                                          Integer type, Long generationTaskId, String prompt, String inputFiles, String outputFiles, String status) {
+                                          Integer type, Long generationTaskId, String prompt, String inputFiles, String outputFiles, String ouputContent, String status) {
         AsyncManager.me().execute(new TimerTask() {
             @Override
             public void run() {
@@ -1080,8 +1248,9 @@ public class TaskApiInvokeServiceImpl implements ITaskApiInvokeService {
                 record.setType(type);
                 record.setGenerationTaskId(generationTaskId);
                 record.setPrompt(prompt);
-                record.setInputFiles(inputFiles);
+                record.setInputFiles(serverUrl + ":" +serverPort + inputFiles);
                 record.setOutputFiles(outputFiles);
+                record.setOuputContent(ouputContent);
                 record.setStatus(status);
                 record.setCreateTime(new Date());
                 furnitureAiCallRecordsMapper.insert(record);
@@ -1107,6 +1276,71 @@ public class TaskApiInvokeServiceImpl implements ITaskApiInvokeService {
         }
     }
 
+    private BigDecimal extractInputToken(JsonNode usageNode) {
+        if (usageNode == null || usageNode.isNull() || usageNode.isMissingNode()) {
+            return null;
+        }
+        BigDecimal promptTokens = parseBigDecimal(usageNode.path("prompt_tokens"));
+        if (promptTokens != null && promptTokens.compareTo(BigDecimal.ZERO) > 0) {
+            return promptTokens;
+        }
+        BigDecimal inputTokens = parseBigDecimal(usageNode.path("input_tokens"));
+        if (inputTokens != null && inputTokens.compareTo(BigDecimal.ZERO) > 0) {
+            return inputTokens;
+        }
+        JsonNode promptDetails = usageNode.path("prompt_tokens_details");
+        if (!promptDetails.isMissingNode() && !promptDetails.isNull()) {
+            BigDecimal cachedTokens = parseBigDecimal(promptDetails.path("cached_tokens"));
+            BigDecimal textTokens = parseBigDecimal(promptDetails.path("text_tokens"));
+            BigDecimal audioTokens = parseBigDecimal(promptDetails.path("audio_tokens"));
+            BigDecimal imageTokens = parseBigDecimal(promptDetails.path("image_tokens"));
+            BigDecimal total = BigDecimal.ZERO;
+            boolean hasValue = false;
+            for (BigDecimal value : new BigDecimal[]{cachedTokens, textTokens, audioTokens, imageTokens}) {
+                if (value != null) {
+                    total = total.add(value);
+                    hasValue = true;
+                }
+            }
+            if (hasValue && total.compareTo(BigDecimal.ZERO) > 0) {
+                return total;
+            }
+        }
+        return promptTokens != null ? promptTokens : inputTokens;
+    }
+
+    private BigDecimal extractOutputToken(JsonNode usageNode) {
+        if (usageNode == null || usageNode.isNull() || usageNode.isMissingNode()) {
+            return null;
+        }
+        BigDecimal completionTokens = parseBigDecimal(usageNode.path("completion_tokens"));
+        if (completionTokens != null && completionTokens.compareTo(BigDecimal.ZERO) > 0) {
+            return completionTokens;
+        }
+        BigDecimal outputTokens = parseBigDecimal(usageNode.path("output_tokens"));
+        if (outputTokens != null && outputTokens.compareTo(BigDecimal.ZERO) > 0) {
+            return outputTokens;
+        }
+        JsonNode completionDetails = usageNode.path("completion_tokens_details");
+        if (!completionDetails.isMissingNode() && !completionDetails.isNull()) {
+            BigDecimal textTokens = parseBigDecimal(completionDetails.path("text_tokens"));
+            BigDecimal audioTokens = parseBigDecimal(completionDetails.path("audio_tokens"));
+            BigDecimal reasoningTokens = parseBigDecimal(completionDetails.path("reasoning_tokens"));
+            BigDecimal total = BigDecimal.ZERO;
+            boolean hasValue = false;
+            for (BigDecimal value : new BigDecimal[]{textTokens, audioTokens, reasoningTokens}) {
+                if (value != null) {
+                    total = total.add(value);
+                    hasValue = true;
+                }
+            }
+            if (hasValue && total.compareTo(BigDecimal.ZERO) > 0) {
+                return total;
+            }
+        }
+        return completionTokens != null ? completionTokens : outputTokens;
+    }
+
     private BigDecimal parseFirstNonNull(JsonNode node, String... fieldNames) {
         if (node == null || fieldNames == null) {
             return null;
@@ -1118,51 +1352,6 @@ public class TaskApiInvokeServiceImpl implements ITaskApiInvokeService {
             }
         }
         return null;
-    }
-
-    /**
-     * 上传多个文件，返回文件ID列表
-     */
-    public List<String> uploadMultipleFiles(List<FileInfo> files, String user, String url, String apiKey) throws IOException {
-        List<String> fileIds = new ArrayList<>();
-        for (FileInfo fileInfo : files) {
-            String fileId = uploadSingleFile(fileInfo.bytes, fileInfo.fileName, fileInfo.mimeType, user, url, apiKey);
-            fileIds.add(fileId);
-        }
-        return fileIds;
-    }
-
-    /**
-     * 上传文件字节数组到 Dify
-     * @param fileBytes 文件内容的字节数组
-     * @param fileName  文件名（包括扩展名，如 "image.png"）
-     * @param mimeType  MIME类型，如 "image/png"
-     * @param user      用户标识
-     * @return 文件ID
-     */
-    private String uploadSingleFile(byte[] fileBytes, String fileName, String mimeType, String user,String url,String apiKey) throws IOException {
-        // 构建 multipart 请求体，直接使用字节数组
-        RequestBody requestBody = new MultipartBody.Builder()
-                .setType(MultipartBody.FORM)
-                .addFormDataPart("file", fileName,
-                        RequestBody.create(MediaType.parse(mimeType), fileBytes))
-                .addFormDataPart("user", user)
-                .build();
-
-        Request request = new Request.Builder()
-                .url(url + "/files/upload")
-                .header("Authorization", "Bearer " + apiKey)
-                .post(requestBody)
-                .build();
-
-        try (Response response = client.newCall(request).execute()) {
-            if (!response.isSuccessful()) {
-                throw new IOException("上传失败: " + response.code() + " - " + response.body().string());
-            }
-            String responseBody = response.body().string();
-            JsonNode root = mapper.readTree(responseBody);
-            return root.path("id").asText();
-        }
     }
 
     private File resolveProfileFile(String filePath) {
@@ -1229,20 +1418,6 @@ public class TaskApiInvokeServiceImpl implements ITaskApiInvokeService {
             throw new ServiceException("下载外部图片失败");
         }
     }
-
-    private byte[] readFileBytes(File file) throws IOException {
-        return Files.readAllBytes(file.toPath());
-    }
-
-    private String resolveMimeType(File file) throws IOException {
-        Path path = file.toPath();
-        String mimeType = Files.probeContentType(path);
-        if (mimeType != null && !mimeType.isBlank()) {
-            return mimeType;
-        }
-        return "application/octet-stream";
-    }
-
     private void validateBalanceEnough(Long userId,BigDecimal cost) {
         FurnitureUserBalanceAccountDO account = furnitureUserBalanceAccountService.selectFurnitureUserBalanceAccountByUserId(userId);
         BigDecimal balance = account == null ? BigDecimal.ZERO : account.getBalance();
