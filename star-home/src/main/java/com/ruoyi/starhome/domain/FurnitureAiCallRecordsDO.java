@@ -43,9 +43,6 @@ public class FurnitureAiCallRecordsDO implements Serializable {
     /** 费用 */
     private BigDecimal cost;
 
-    /** 类型，1：视觉设计，2：灵感文案，3：动态影像 */
-    private Integer type;
-
     /** 视频生成任务id */
     private Long generationTaskId;
 

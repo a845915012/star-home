@@ -1124,7 +1124,7 @@ public class TaskApiInvokeServiceImpl implements ITaskApiInvokeService {
             return;
         }
         recordUsageAsyncDetailed(userId, module, aiMode, BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO,
-                totalPrice == null ? BigDecimal.ZERO : totalPrice, 3, generationTaskId, prompt, inputFiles, null, null, "PROCESSING");
+                totalPrice == null ? BigDecimal.ZERO : totalPrice,  generationTaskId, prompt, inputFiles, null, null, "PROCESSING");
     }
 
     /**
@@ -1184,7 +1184,6 @@ public class TaskApiInvokeServiceImpl implements ITaskApiInvokeService {
                 defaultZero(tokenOut),
                 defaultZero(totalToken),
                 totalPrice == null ? request.getConsumeConstants().getPrice() : totalPrice,
-                1,
                 null,
                 request.getQuestion(),
                 request.getFilePaths() == null ? null : String.join(",", request.getFilePaths()),
@@ -1221,7 +1220,6 @@ public class TaskApiInvokeServiceImpl implements ITaskApiInvokeService {
                 defaultZero(tokenOut),
                 defaultZero(totalToken),
                 totalPrice == null ? defaultZero(fallbackCost) : totalPrice,
-                2,
                 null,
                 prompt,
                 inputFiles,
@@ -1232,8 +1230,7 @@ public class TaskApiInvokeServiceImpl implements ITaskApiInvokeService {
     }
 
     private void recordUsageAsyncDetailed(Long userId, String module, String aiMode,
-                                          BigDecimal tokenIn, BigDecimal tokenOut, BigDecimal totalToken, BigDecimal cost,
-                                          Integer type, Long generationTaskId, String prompt, String inputFiles, String outputFiles, String ouputContent, String status) {
+                                          BigDecimal tokenIn, BigDecimal tokenOut, BigDecimal totalToken, BigDecimal cost,Long generationTaskId, String prompt, String inputFiles, String outputFiles, String ouputContent, String status) {
         AsyncManager.me().execute(new TimerTask() {
             @Override
             public void run() {
@@ -1245,7 +1242,6 @@ public class TaskApiInvokeServiceImpl implements ITaskApiInvokeService {
                 record.setTokenOut(tokenOut);
                 record.setTotalToken(totalToken);
                 record.setCost(cost);
-                record.setType(type);
                 record.setGenerationTaskId(generationTaskId);
                 record.setPrompt(prompt);
                 record.setInputFiles(serverUrl + ":" +serverPort + inputFiles);
