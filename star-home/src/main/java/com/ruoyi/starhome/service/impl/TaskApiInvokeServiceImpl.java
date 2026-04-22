@@ -835,13 +835,13 @@ public class TaskApiInvokeServiceImpl implements ITaskApiInvokeService {
                     }
 
                     if (!chunk.isBlank()) {
-                        String normalizedChunk = chunk.trim();
+                        String normalizedChunk = chunk;
                         if (!started) {
                             if ("content".equalsIgnoreCase(normalizedChunk)) {
                                 continue;
                             }
                             if (normalizedChunk.toLowerCase().startsWith("content")) {
-                                chunk = normalizedChunk.substring("content".length()).trim();
+                                chunk = normalizedChunk.substring("content".length());
                                 if (chunk.isBlank()) {
                                     continue;
                                 }
