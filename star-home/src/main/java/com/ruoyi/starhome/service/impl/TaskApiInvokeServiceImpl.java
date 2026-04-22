@@ -796,7 +796,7 @@ public class TaskApiInvokeServiceImpl implements ITaskApiInvokeService {
                     continue;
                 }
                 if (line.startsWith("data:")) {
-                    String data = line.substring(5).trim();
+                    String data = line.substring(5);
                     if ("[DONE]".equals(data)) {
                         ObjectNode doneEvent = mapper.createObjectNode();
                         doneEvent.put("event", "done");
