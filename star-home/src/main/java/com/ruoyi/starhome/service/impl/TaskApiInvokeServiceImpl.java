@@ -667,7 +667,7 @@ public class TaskApiInvokeServiceImpl implements ITaskApiInvokeService {
 
     private ObjectNode buildChatCompletionsMultiModalPayload(String question, List<String> filePaths, String responseMode) {
         ObjectNode root = mapper.createObjectNode();
-        root.put("model", "gpt-4o-all");
+        root.put("model", "gpt-4o");
         root.put("stream", "streaming".equals(responseMode));
 
         ArrayNode messages = mapper.createArrayNode();
