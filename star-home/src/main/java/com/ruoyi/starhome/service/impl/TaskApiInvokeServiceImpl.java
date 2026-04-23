@@ -10,6 +10,7 @@ import com.ruoyi.common.exception.ServiceException;
 import com.ruoyi.framework.security.util.SecurityFrameworkUtils;
 import com.ruoyi.starhome.domain.*;
 import com.ruoyi.starhome.domain.dto.*;
+import com.ruoyi.starhome.enums.AiModeConstants;
 import com.ruoyi.starhome.mapper.*;
 import com.ruoyi.starhome.service.IApiCallMonitorCacheService;
 import com.ruoyi.starhome.service.IFurnitureUserBalanceAccountService;
@@ -133,7 +134,7 @@ public class TaskApiInvokeServiceImpl implements ITaskApiInvokeService {
         recordUsageAsyncFromGeminiImage(
                 request.getUserId(),
                 request.getModule(),
-                "gemini-3-pro-image-preview",
+                AiModeConstants.IMAGE_IMAGE_AI.getAiMode(),
                 request.getConsumeConstants().getPrice(),
                 request.getQuestion(),
                 request.getFilePaths() == null ? null : String.join(",", request.getFilePaths()),
@@ -224,7 +225,7 @@ public class TaskApiInvokeServiceImpl implements ITaskApiInvokeService {
             if (taskId == null || taskId.isBlank()) {
                 taskId = getText(resultNode, "id");
             }
-            createDeferredVideoUsageRecord(userId, "动态影像", "veo3.1-pro", generationTaskId,
+            createDeferredVideoUsageRecord(userId, "动态影像", AiModeConstants.IMAGE_VIDEO_AI.getAiMode(), generationTaskId,
                     request.getPrompt(), String.join(",", publicImageUrls),
                     request.getConsumeConstants() == null ? BigDecimal.ZERO : request.getConsumeConstants().getPrice());
             FurnitureVideoGenerationTaskDO generationTaskDO;
@@ -294,7 +295,7 @@ public class TaskApiInvokeServiceImpl implements ITaskApiInvokeService {
     private String callImageToVideoApi(String apiUrl, String apiKey, String prompt, List<String> publicImageUrls) throws IOException {
         ObjectNode payload = mapper.createObjectNode();
         payload.put("prompt", prompt == null ? "" : prompt);
-        payload.put("model", "veo3.1-pro");
+        payload.put("model", AiModeConstants.IMAGE_VIDEO_AI.getAiMode());
         payload.put("enhance_prompt", true);
 
         ArrayNode images = mapper.createArrayNode();
@@ -424,7 +425,7 @@ public class TaskApiInvokeServiceImpl implements ITaskApiInvokeService {
         try{
             String[] usageHolder = new String[1];
             String apiResult = generateByChatCompletions(
-                    "gemini-3-pro-image-preview",
+                    AiModeConstants.IMAGE_IMAGE_AI.getAiMode(),
                     request.getQuestion(),
                     filePaths,
                     apiPool.getApiUrl(),
@@ -667,7 +668,7 @@ public class TaskApiInvokeServiceImpl implements ITaskApiInvokeService {
 
     private ObjectNode buildChatCompletionsMultiModalPayload(String question, List<String> filePaths, String responseMode) {
         ObjectNode root = mapper.createObjectNode();
-        root.put("model", "gpt-4o");
+        root.put("model", AiModeConstants.TEXT_GENERATE_AI.getAiMode());
         root.put("stream", "streaming".equals(responseMode));
 
         ArrayNode messages = mapper.createArrayNode();
@@ -1179,7 +1180,7 @@ public class TaskApiInvokeServiceImpl implements ITaskApiInvokeService {
         recordUsageAsyncDetailed(
                 request.getUserId(),
                 request.getModule(),
-                "gpt-4o-all",
+                AiModeConstants.TEXT_GENERATE_AI.getAiMode(),
                 defaultZero(tokenIn),
                 defaultZero(tokenOut),
                 defaultZero(totalToken),
