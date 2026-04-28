@@ -169,6 +169,7 @@ public class TaskApiInvokeServiceImpl implements ITaskApiInvokeService {
     @Override
     @Transactional
     public TaskApiInvokeResponse imageGenerateVideo(ImageGenerateVideoRequest request) throws IOException {
+        log.info("imageGenerateVideo begin");
         if (request == null || request.getImageUrls() == null || request.getImageUrls().isEmpty()) {
             throw new ServiceException("图片URL列表不能为空");
         }
@@ -218,8 +219,9 @@ public class TaskApiInvokeServiceImpl implements ITaskApiInvokeService {
         }
 
         try {
+            log.info("callImageToVideoApi begin");
             String rawResponse = callImageToVideoApi(apiPool.getApiUrl(), apiPool.getApiKey(), request.getPrompt(), publicImageUrls);
-
+            log.info("callImageToVideoApi end");
             JsonNode resultNode = mapper.readTree(rawResponse);
             String taskId = getText(resultNode, "task_id");
             if (taskId == null || taskId.isBlank()) {
@@ -277,7 +279,7 @@ public class TaskApiInvokeServiceImpl implements ITaskApiInvokeService {
 
             // 调用监控先写缓存，扣费放到后续任务成功后处理
             apiCallMonitorCacheService.recordCall(userId);
-
+            log.info("imageGenerateVideo end");
             TaskApiInvokeResponse response = new TaskApiInvokeResponse();
             response.setUserId(videoTask.getUserId());
             response.setApiNumber(apiNumber);

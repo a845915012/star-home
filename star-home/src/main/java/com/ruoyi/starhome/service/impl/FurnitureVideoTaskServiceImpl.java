@@ -24,6 +24,7 @@ import okhttp3.OkHttpClient;
 import okhttp3.Request;
 import okhttp3.Response;
 import okhttp3.ResponseBody;
+import org.apache.commons.lang3.StringUtils;
 import org.springframework.beans.BeanUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
@@ -116,12 +117,24 @@ public class FurnitureVideoTaskServiceImpl implements IFurnitureVideoTaskService
             throw new ServiceException("单据头下无可拼接明细");
         }
 
-        List<String> localSegmentUrls = detailList.stream()
+        List<FurnitureVideoTaskDO> furnitureVideoTaskList = detailList.stream()
                 .filter(item -> item.getStatus() != null && item.getStatus().equalsIgnoreCase("success"))
+                .collect(Collectors.toList());
+        for (FurnitureVideoTaskDO furnitureVideoTaskDO : furnitureVideoTaskList) {
+            if(StringUtils.isBlank(furnitureVideoTaskDO.getVideoUrlLocal())){
+                try{
+                    String localUrl = starhomeFileUrlUtils.downloadRemoteVideoToProfile(furnitureVideoTaskDO.getVideoUrlRemote());
+                    furnitureVideoTaskDO.setVideoUrlLocal(localUrl);
+                    furnitureVideoTaskMapper.updateById(furnitureVideoTaskDO);
+                }catch (Exception e){
+                    log.error("taskId:{},下载视频失败",furnitureVideoTaskDO.getTaskId());
+                }
+            }
+        }
+        List<String> localSegmentUrls = detailList.stream()
                 .filter(item -> item.getVideoUrlLocal() != null && !item.getVideoUrlLocal().isBlank())
                 .map(FurnitureVideoTaskDO::getVideoUrlLocal)
                 .collect(Collectors.toList());
-
         if (localSegmentUrls.isEmpty()) {
             throw new ServiceException("单据头下无成功视频可拼接");
         }

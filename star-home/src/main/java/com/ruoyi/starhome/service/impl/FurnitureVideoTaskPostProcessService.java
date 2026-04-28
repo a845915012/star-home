@@ -348,35 +348,61 @@ public class FurnitureVideoTaskPostProcessService {
                 ? "家居产品" : generationTask.getProduct();
         String material = generationTask == null || generationTask.getMaterial() == null || generationTask.getMaterial().isBlank()
                 ? "原木" : generationTask.getMaterial();
-        return "一、【前置最高权重锁死指令】\n" +
-                "必须 100% 严格遵守的核心禁令（违反任意一条均视为生成失败）\n" +
-                "1.【最高优先级・右下角水印专项绝对禁令】 全程全帧、画面所有区域（重点锁定画面右下角、四个边角），绝对禁止生成任何形式的水印、logo、标识、文字、角标、平台生成标记、AI 隐形水印、半透明标识、像素级水印、单帧闪烁标识、推广信息；画面全程 100% 纯净，无任何多余视觉元素，哪怕是单帧、半透明、像素级的微小水印也绝对禁止出现。\n" +
-                "2."+product+"全程绝对静止，空间朝向、三维形态、品类结构、尺寸颜色 100% 与用户上传原图一致，无任何旋转、位移、形变、穿模、品类变更（沙发始终为沙发，床始终为床，床垫始终为床垫，无任何形态突变）\n" +
-                "3.全程全帧画面绝对禁止生成任何用户未指定的不明物体，包括莫名杆子、金属条、线条、立柱、支架、悬浮结构、多余陈设，仅保留用户指定家具 + 固定极简家居空间\n" +
-                "4.所有材质纹理必须还原真实物理肌理，绝对禁止蜂窝状、颗粒状、马赛克式、网格状的错乱噪点与畸变纹理\n" +
-                "5.第一段仅自然放松的真人手部入画，绝对禁止生成模特头部、躯干、半身、残缺身体部位，手部仅静态放置在家具核心展示面，不遮挡产品主体，仅做视觉引导突出材质\n" +
-                "6.全程镜头焦点严格锁定用户指定家具的正面核心使用接触面（床垫为正面面料层、沙发为坐面 + 靠背正面、柜体为柜门正面），绝对禁止聚焦到家具底部、床底、背面、内部框架、柜体深处等非核心展示区域\n" +
-                "7.全程无任何高频运镜切换、景别跳变、画面骤停，采用连贯匀速长镜头，节奏平缓丝滑，无 AI 违和感\n" +
-                "8.全程无任何人声配音、背景音乐、环境音效，纯视觉画面呈现 \n" +
-                "9.无动态元素衔接禁令：衔接关键帧区间（第一段 7-8 秒、第二段 0-1 秒）绝对禁止出现手部及任何动态物体，家具全程保持静止，背景空间无任何变动\n" +
-                "必须 100% 执行的核心生成标准\n" +
-                "1.画质标准：8K 超高清分辨率，60 帧 / 秒高帧率，HDR 广色域，真人实拍级高端家居商业宣传片质感，无过曝、无暗部死黑、无画面抖动 \n" +
-                "2.光影标准：全程采用 5600K 标准日光恒定柔光系统，主光、辅光、轮廓光的位置、强度、色温全程固定无变化，无明暗起伏、无动态光影跳变，柔光精准打亮家具正面核心接触面 \n" +
-                "3.色彩标准：全程采用潘通中性灰基底，色彩饱和度统一 - 15，对比度统一 + 10，伽马值 2.2，全程无任何色彩偏移、滤镜变动 \n" +
-                "4.运镜标准：全程采用专业电影级滑轨匀速运镜，加速度为 0，绝对匀速，无任何变速、启停、急推急拉，两段视频运镜节奏完全同频 \n" +
-                "5.空间锚定：家具主体几何中心全程严格锁定在画面绝对中心轴线，无论运镜如何变化，家具中心永远与画面中心重合，无任何偏移；背景空间结构、墙体、地面、陈设全程 100% 固定不变 \n" +
-                "6.画面纯净度标准：画面所有区域（尤其是右下角）全程无任何多余像素、异常色块、标识水印，帧帧纯净无杂质。\n" +
+        return "This is a high-end commercial furniture video. Stability and consistency are more important than creativity.\n" +
+                "一、【前置最高权重锁死指令】\n" +
+                "必须 100% 严格遵守（任一违反直接判定失败）：\n" +
+                "1.【水印绝对禁令｜最高优先级】\n" +
+                "全程所有帧、所有区域（重点：右下角 + 四角）禁止出现任何水印、logo、文字、标识、平台信息、AI痕迹（包括隐形/半透明/单帧闪烁/像素级）。\n" +
+                "→ 输出必须为“纯净无标识画面”。 \n" +
+                "2.【家具主体锁定】\n" +
+                "用户上传家具： "+product+"\n" +
+                "完全静止 \n" +
+                "不旋转 / 不位移 / 不变形 \n" +
+                "品类绝对固定（床=床、沙发=沙发） \n" +
+                "颜色 / 尺寸 / 结构 100%一致 \n" +
+                "3.【场景纯净限制】\n" +
+                "仅允许：家具主体 + 极简空间\n" +
+                "禁止生成任何未明确指定物体（杆、线、支架、悬浮物等） \n" +
+                "4.【材质真实约束】\n" +
+                "材质为"+material+"，所有材质必须为真实物理材质\n" +
+                "禁止：噪点 / 蜂窝 / 马赛克 / 错乱纹理 \n" +
+                "5.【焦点锁定】\n" +
+                "镜头始终锁定：\n" +
+                "家具正面核心接触面\n" +
+                "禁止拍：底部 / 背面 / 内部 \n" +
+                "6.【运镜约束】\n" +
+                "仅允许：单一方向匀速长镜头\n" +
+                "禁止：跳切 / 停顿 / 变速 \n" +
+                "7.【音频】\n" +
+                "完全静音 \n" +
+                "8.【衔接静止区】\n" +
+                "7–8秒：\n" +
+                "禁止任何动态（尤其手部）\n" +
+                "必须执行的生成标准\n" +
+                "8K / 60fps / HDR / 商业级真实质感 \n" +
+                "光源固定：5600K恒定柔光（无变化） \n" +
+                "色彩：中性灰基底，饱和度 -15，对比度 +10，Gamma 2.2（全程一致） \n" +
+                "运镜：滑轨匀速（加速度=0） \n" +
+                "构图：家具中心 = 画面中心（绝对锁定） \n" +
+                "画面：无噪点 / 无异常像素 / 无任何标识 \n" +
                 "二、通用全局规范\n" +
-                "1.主体还原：严格 1:1 还原用户上传图片中的家具外观，画面绝对核心为 **"+product+"，精准呈现"+material+"的真实物理肌理,核心要求，AI 不得做任何自主创意修改 \n" +
-                "2.核心展示区锁定：全程以家具正面核心使用接触面为唯一核心展示区域，所有运镜、焦点变化均围绕该区域展开，无任何偏离 \n" +
-                "3.场景规范：背景采用与家具风格统一的极简高级家居空间，空间调性、软装配色、陈设位置全程固定，无任何新增、删减、改动的元素 \n" +
-                "4.衔接规范：两段视频的首尾衔接帧，锚点、光影、色彩、机位、背景空间、家具朝向 100% 匹配，通过景深平滑过渡实现无缝拼接，无任何画面跳切、断层 \n" +
-                "5.时长规范：单条视频时长严格控制为 8 秒，全程匀速运镜，无提前收尾、画面骤停的情况 \n" +
-                "5.零水印二次规范：视频从第一帧到最后一帧，画面右下角及所有边角，全程无任何水印、标识、文字，无任何例外。\n" +
-                "\n" +
-                "0-4 秒 画面 100% 承接全局规范所有固定参数，起始帧与第一段结尾帧的锚点、光影、色彩、机位、虚化程度、背景空间结构 100% 完全匹配；采用与家具中心轴线垂直的正向轨道匀速微推连贯长镜头，全程单方向、单速度、无任何启停切换，运镜速度与第一段完全同频；同步启动逆向景深平滑对焦，焦点从背景空间，以恒定速度平缓顺滑地向画面中心绝对静止的家具正面核心使用接触面转移，4 秒末完成对焦，焦点 100% 锁定家具核心接触面，背景回归柔和虚化；全程绝对禁止聚焦到家具底部、床底、背面等非核心区域，家具形态、结构、朝向全程恒定，无任何变形、替换，景深过渡完全掩盖拼接痕迹，人眼完全无法感知断点，全程无水印，画面右下角无任何标识、水印\n" +
-                "4-6 秒镜头平缓切换为与家具正面平行的横向长距离匀速滑轨平移（右→左）连贯长镜头，全程单方向、单速度、无任何启停切换，平移速度与前序推镜速度完全匹配，无节奏突变；镜头始终与家具正面保持垂直，全程焦点严格锁定家具正面核心使用接触面，完整展现家具的线条美学与面料肌理，平移过程中，焦点平缓顺滑地呈现核心接触面的精工细节（床垫面料的细腻编织纹理、面料拼接的工整缝线、边缘封边工艺、五金配件光泽），绝对禁止聚焦到床底、家具底部、内部框架等非核心区域；家具全程绝对静止、形态恒定，背景空间与第一段完全统一，全程无水印，画面右下角无任何标识、水印\n" +
-                "6-8 秒 镜头平缓回归与家具中心轴线垂直的正向机位，采用匀速缓拉连贯长镜头，全程单方向、单速度、无任何启停切换；从核心接触面的工艺细节特写，平缓顺滑地过渡到家具完整中景，最终落幅到家具与空间融合的完整全景，全程焦点始终围绕家具正面核心使用接触面，家具主体的形态、结构、品类与初始帧、用户上传原图 100% 完全一致；最终定格在家具与空间融合的全景高级感画面，保持光影全程恒定，画面以极缓线性速度柔和均匀变暗，最终干净落幅，无任何画面抖动、突兀转场，完成整条宣传片的完整收尾，全程无水印，画面右下角无任何标识、水印";
+                "5.主体 = 用户上传家具（1:1复刻） \n" +
+                "6.核心展示 = 正面接触面 \n" +
+                "7.背景 = 全程不变\n" +
+                "8.时长 = 8秒（严格）\n" +
+                "三、分镜\n" +
+                "0–4秒（推镜 + 对焦）\n" +
+                "起始帧 = 用户原图（强制一致） \n" +
+                "正向匀速推镜 \n" +
+                "焦点：背景 → 家具核心面（平滑过渡）\n" +
+                "4–6秒（横移）\n" +
+                "右 → 左 匀速 \n" +
+                "展示材质细节 \n" +
+                "焦点始终锁定核心面\n" +
+                "6–8秒（拉镜）\n" +
+                "缓慢拉远 \n" +
+                "回到完整家具构图 \n" +
+                "最终帧 = 再次精确还原原始图片";
     }
 
     private boolean isSuccessStatus(String status) {
@@ -486,7 +512,7 @@ public class FurnitureVideoTaskPostProcessService {
             @Override
             public void run() {
                 try {
-                    String localUrl = downloadRemoteVideoToProfile(remoteVideoUrl);
+                    String localUrl = starhomeFileUrlUtils.downloadRemoteVideoToProfile(remoteVideoUrl);
                     if (localUrl == null || localUrl.isBlank()) {
                         return;
                     }
@@ -541,57 +567,4 @@ public class FurnitureVideoTaskPostProcessService {
         return false;
     }
 
-    private String downloadRemoteVideoToProfile(String remoteVideoUrl) {
-        File downloadDir = new File(RuoYiConfig.getProfile(), "download/video");
-        if (!downloadDir.exists() && !downloadDir.mkdirs()) {
-            throw new ServiceException("创建视频下载目录失败: " + downloadDir.getAbsolutePath());
-        }
-
-        Request request = new Request.Builder()
-                .url(remoteVideoUrl)
-                .get()
-                .build();
-
-        try (Response response = httpClient.newCall(request).execute()) {
-            if (!response.isSuccessful()) {
-                throw new ServiceException("下载远程视频失败: " + response.code());
-            }
-            ResponseBody body = response.body();
-            if (body == null) {
-                throw new ServiceException("下载远程视频失败: 响应体为空");
-            }
-
-            String ext = resolveVideoExtByMimeType(response.header("Content-Type"));
-            String fileName = "video_" + System.currentTimeMillis() + "_" + UUID.randomUUID().toString().replace("-", "") + "." + ext;
-            File targetFile = new File(downloadDir, fileName);
-            Files.write(targetFile.toPath(), body.bytes());
-
-            if (!targetFile.exists() || !targetFile.isFile()) {
-                throw new ServiceException("下载远程视频失败: 文件落盘异常");
-            }
-            return "/profile/download/video/" + fileName;
-        } catch (IOException e) {
-            throw new ServiceException("下载远程视频失败: " + e.getMessage());
-        }
-    }
-
-    private String resolveVideoExtByMimeType(String mimeType) {
-        if (mimeType == null || mimeType.isBlank()) {
-            return "mp4";
-        }
-        String normalized = mimeType.toLowerCase();
-        if (normalized.contains("quicktime")) {
-            return "mov";
-        }
-        if (normalized.contains("webm")) {
-            return "webm";
-        }
-        if (normalized.contains("x-matroska") || normalized.contains("matroska")) {
-            return "mkv";
-        }
-        if (normalized.contains("avi")) {
-            return "avi";
-        }
-        return "mp4";
-    }
 }
