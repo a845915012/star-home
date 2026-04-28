@@ -120,6 +120,11 @@ public class FurnitureVideoTaskServiceImpl implements IFurnitureVideoTaskService
         List<FurnitureVideoTaskDO> furnitureVideoTaskList = detailList.stream()
                 .filter(item -> item.getStatus() != null && item.getStatus().equalsIgnoreCase("success"))
                 .collect(Collectors.toList());
+        if(furnitureVideoTaskList.size() != header.getExpectedTaskCount()){
+            header.setStatus("failed");
+            header.setErrorMessage("即视频生成数量小于等于任务需要生成视频数");
+            return;
+        }
         for (FurnitureVideoTaskDO furnitureVideoTaskDO : furnitureVideoTaskList) {
             if(StringUtils.isBlank(furnitureVideoTaskDO.getVideoUrlLocal())){
                 try{
@@ -138,7 +143,9 @@ public class FurnitureVideoTaskServiceImpl implements IFurnitureVideoTaskService
         if (localSegmentUrls.isEmpty()) {
             throw new ServiceException("单据头下无成功视频可拼接");
         }
-
+        if(localSegmentUrls.size() != header.getExpectedTaskCount()){
+            throw new ServiceException("部分本地视频链接为空，后续重新拉取");
+        }
         String mergedLocalUrl = mergeLocalMp4Videos(localSegmentUrls);
         String mergedRemoteUrl = starhomeFileUrlUtils.toPublicFileUrl(resolveProfilePathByLocalUrl(mergedLocalUrl).toFile());
 

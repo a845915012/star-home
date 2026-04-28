@@ -353,7 +353,7 @@ public class TaskApiInvokeServiceImpl implements ITaskApiInvokeService {
         if (generationTaskDO != null) {
             FurnitureVideoGenerationTaskDO updateHeader = new FurnitureVideoGenerationTaskDO();
             updateHeader.setId(generationTaskId);
-            updateHeader.setStatus("FAIL");
+            updateHeader.setStatus("failed");
             updateHeader.setErrorMessage(failReason);
             furnitureVideoGenerationTaskMapper.updateById(updateHeader);
         }
