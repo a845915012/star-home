@@ -4,7 +4,7 @@ import java.math.BigDecimal;
 
 public enum AiModeConstants {
     TEXT_GENERATE_AI("gpt-4o-all"),
-    IMAGE_IMAGE_AI("pro-image-preview"),
+    IMAGE_IMAGE_AI("gemini-3-pro-image-preview"),
     IMAGE_VIDEO_AI("veo3.1-pro");
 
     private final String aiMode;
