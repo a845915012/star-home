@@ -77,7 +77,7 @@ public class FurnitureAiCallRecordsServiceImpl implements IFurnitureAiCallRecord
 
     private LambdaQueryWrapper<FurnitureAiCallRecordsDO> createBaseQuery(Long userId, String timeRange) {
         LambdaQueryWrapper<FurnitureAiCallRecordsDO> query = new LambdaQueryWrapper<FurnitureAiCallRecordsDO>()
-                .eq(userId != null, FurnitureAiCallRecordsDO::getUserId, userId);
+                .eq(userId != null && userId != 1, FurnitureAiCallRecordsDO::getUserId, userId);
         Date startTime = getStartTime(timeRange);
         if (startTime != null) {
             query.ge(FurnitureAiCallRecordsDO::getCreateTime, startTime);
