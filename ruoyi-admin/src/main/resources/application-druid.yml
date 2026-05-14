@@ -6,8 +6,8 @@ spring:
         druid:
             # 主库数据源
             master:
-                url: jdbc:mysql://8.163.12.178:4307/star-home?useUnicode=true&characterEncoding=utf8&zeroDateTimeBehavior=convertToNull&useSSL=true&serverTimezone=GMT%2B8
-                username: root
+                url: jdbc:mysql://mysql-for-java:3306/star-home?useUnicode=true&characterEncoding=utf8&zeroDateTimeBehavior=convertToNull&useSSL=true&serverTimezone=GMT%2B8
+                username: navicat_remote
                 password: 753951abc
             # 从库数据源
             slave:
