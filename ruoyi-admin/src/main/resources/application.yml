@@ -68,13 +68,13 @@ spring:
     # redis 配置
     redis:
       # 地址
-      host: 47.112.126.153
+      host: 8.163.12.178
       # 端口，默认为6379
       port: 6379
       # 数据库索引
       database: 0
       # 密码
-      password: ynkbc0!
+      password: 753951abc
       # 连接超时时间
       timeout: 10s
       lettuce:
@@ -144,7 +144,7 @@ xss:
 
 # star-home 业务配置
 starhome:
-  public-file-base-url: http://47.112.126.153
+  public-file-base-url: http://8.163.12.178
   port: 6888
   video-task:
     # 视频任务处理锁超时分钟数（超过该时间会在下次调度时回收锁）
