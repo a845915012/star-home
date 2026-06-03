@@ -149,3 +149,22 @@ starhome:
   video-task:
     # 视频任务处理锁超时分钟数（超过该时间会在下次调度时回收锁）
     lock-expire-minutes: 10
+
+# 支付宝配置
+alipay:
+  # 支付宝网关地址 (正式环境: https://openapi.alipay.com/gateway.do, 沙箱环境: https://openapi-sandbox.dl.alipaydev.com/gateway.do)
+  server-url: https://openapi.alipay.com/gateway.do
+  # 应用ID (APPID) - 在支付宝开放平台创建应用后获取
+  app-id: ${ALIPAY_APP_ID:}
+  # 商户私钥 (应用私钥) - 使用支付宝密钥生成工具生成
+  private-key: ${ALIPAY_PRIVATE_KEY:}
+  # 支付宝公钥 - 在支付宝开放平台应用详情中获取
+  alipay-public-key: ${ALIPAY_PUBLIC_KEY:}
+  # 签名类型
+  sign-type: RSA2
+  # 字符编码
+  charset: UTF-8
+  # 同步回调地址 (支付成功后跳转的前端页面)
+  return-url: ${ALIPAY_RETURN_URL:http://localhost:8080/starhome/alipay/return}
+  # 异步通知地址 (支付宝服务器通知的后端接口，需要公网可访问)
+  notify-url: ${ALIPAY_NOTIFY_URL:http://localhost:8080/starhome/alipay/notify}
