@@ -218,7 +218,8 @@ public class AlipayServiceImpl implements IAlipayService {
     }
 
     @Override
-    public Integer queryPayStatus(String orderNo) {
+    @Transactional
+    public FurnitureRechargeOrderDO queryPayStatus(String orderNo) {
         // 先查本地订单
         FurnitureRechargeOrderDO order = getOrderByOrderNo(orderNo);
         if (order == null) {
@@ -228,7 +229,7 @@ public class AlipayServiceImpl implements IAlipayService {
         // 如果已经是终态，直接返回
         if (order.getPayStatus() == PayStatusConstants.SUCCESS ||
                 order.getPayStatus() == PayStatusConstants.CLOSED) {
-            return order.getPayStatus();
+            return order;
         }
 
         // 主动查询支付宝
@@ -252,19 +253,18 @@ public class AlipayServiceImpl implements IAlipayService {
                     // 调用充值接口
                     balanceAccountService.recharge(order.getUserId(), order.getAmount());
 
-                    return PayStatusConstants.SUCCESS;
+                    return order;
                 } else if ("TRADE_CLOSED".equals(tradeStatus)) {
                     order.setPayStatus(PayStatusConstants.CLOSED);
                     order.setUpdateTime(new Date());
                     rechargeOrderMapper.updateById(order);
-                    return PayStatusConstants.CLOSED;
+                    return order;
                 }
             }
         } catch (Exception e) {
             log.error("查询支付宝订单状态异常", e);
         }
-
-        return order.getPayStatus();
+        return order;
     }
 
     /**

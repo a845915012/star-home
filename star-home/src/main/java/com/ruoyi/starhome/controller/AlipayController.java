@@ -17,7 +17,6 @@ import jakarta.servlet.http.HttpServletRequest;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -25,8 +24,6 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
-import jakarta.servlet.http.HttpServletResponse;
-import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -42,14 +39,6 @@ public class AlipayController extends BaseController {
 
     @Autowired
     private IAlipayService alipayService;
-
-    /**
-     * 支付结果前端页面地址
-     * 配置示例: https://你的前端域名/payment/result
-     * 重定向时会带上参数: ?orderNo=xxx&status=success/fail
-     */
-    @Value("${alipay.frontend-result-url:}")
-    private String frontendResultUrl;
 
     /**
      * PC端充值 - 返回支付表单HTML
@@ -113,71 +102,20 @@ public class AlipayController extends BaseController {
     }
 
     /**
-     * 支付宝同步回调
-     * 用户支付完成后，支付宝会将用户浏览器重定向到此接口
-     * 此接口不处理业务逻辑，只负责重定向到前端结果页面
-     * 业务逻辑由异步通知接口(notify)处理
-     */
-    @Anonymous
-    @Operation(summary = "支付宝同步回调", description = "用户支付完成后跳转，重定向到前端结果页面")
-    @GetMapping("/return")
-    public void returnUrl(
-            @RequestParam("out_trade_no") String orderNo,
-            HttpServletResponse response) throws IOException {
-        log.info("支付宝同步回调, 订单号: {}", orderNo);
-
-        // 查询订单状态（仅用于显示，不做业务处理）
-        Integer payStatus = alipayService.queryPayStatus(orderNo);
-        String status = (payStatus != null && payStatus == 1) ? "success" : "pending";
-
-        // 重定向到前端结果页面
-        String redirectUrl;
-        if (frontendResultUrl != null && !frontendResultUrl.isEmpty()) {
-            // 使用配置的前端页面地址
-            redirectUrl = frontendResultUrl + "?orderNo=" + orderNo + "&status=" + status;
-        } else {
-            // 未配置前端地址时，返回简单的HTML提示页
-            response.setContentType("text/html;charset=UTF-8");
-            response.getWriter().write(buildResultHtml(orderNo, status));
-            return;
-        }
-
-        response.sendRedirect(redirectUrl);
-    }
-
-    /**
-     * 构建简单的支付结果HTML页面（当未配置前端页面时使用）
-     */
-    private String buildResultHtml(String orderNo, String status) {
-        String statusText = "success".equals(status) ? "支付成功" : "支付处理中";
-        String statusColor = "success".equals(status) ? "#52c41a" : "#faad14";
-        return "<!DOCTYPE html>" +
-                "<html><head><meta charset='UTF-8'><meta name='viewport' content='width=device-width,initial-scale=1'>" +
-                "<title>支付结果</title></head>" +
-                "<body style='display:flex;justify-content:center;align-items:center;height:100vh;margin:0;font-family:sans-serif;background:#f5f5f5'>" +
-                "<div style='text-align:center;padding:40px;background:#fff;border-radius:8px;box-shadow:0 2px 8px rgba(0,0,0,0.1)'>" +
-                "<div style='font-size:48px;color:" + statusColor + ";margin-bottom:16px'>" + ("success".equals(status) ? "&#10004;" : "&#8987;") + "</div>" +
-                "<h2 style='margin:0 0 8px;color:#333'>" + statusText + "</h2>" +
-                "<p style='margin:0;color:#666'>订单号: " + orderNo + "</p>" +
-                "</div></body></html>";
-    }
-
-    /**
      * 查询订单支付状态
      */
     @Operation(summary = "查询订单支付状态", description = "根据订单号查询充值订单的支付状态")
     @Parameter(name = "orderNo", description = "充值订单号", example = "RC202601031234561234ABCD", required = true)
     @GetMapping("/query")
     public AjaxResult queryOrder(@RequestParam("orderNo") String orderNo) {
-        Integer payStatus = alipayService.queryPayStatus(orderNo);
-        FurnitureRechargeOrderDO order = alipayService.getOrderByOrderNo(orderNo);
+        FurnitureRechargeOrderDO order = alipayService.queryPayStatus(orderNo);
 
         Map<String, Object> result = new HashMap<>();
         result.put("orderNo", orderNo);
-        result.put("payStatus", payStatus);
-        result.put("amount", order != null ? order.getAmount() : null);
-        result.put("payTime", order != null ? order.getPayTime() : null);
-        result.put("userId", order != null ? order.getUserId() : null);
+        result.put("payStatus", order.getPayStatus());
+        result.put("amount", order.getAmount());
+        result.put("payTime", order.getPayTime());
+        result.put("userId", order.getUserId());
 
         return success(result);
     }

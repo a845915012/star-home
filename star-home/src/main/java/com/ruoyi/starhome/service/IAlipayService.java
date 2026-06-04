@@ -49,5 +49,5 @@ public interface IAlipayService {
      * @param orderNo 订单号
      * @return 支付状态
      */
-    Integer queryPayStatus(String orderNo);
+    FurnitureRechargeOrderDO queryPayStatus(String orderNo);
 }
