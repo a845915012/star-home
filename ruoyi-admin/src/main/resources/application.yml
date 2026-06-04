@@ -150,21 +150,11 @@ starhome:
     # 视频任务处理锁超时分钟数（超过该时间会在下次调度时回收锁）
     lock-expire-minutes: 10
 
-# 支付宝配置
+# 支付宝配置 (基础配置，敏感信息在 application-alipay.yml 中配置)
 alipay:
   # 支付宝网关地址 (正式环境: https://openapi.alipay.com/gateway.do, 沙箱环境: https://openapi-sandbox.dl.alipaydev.com/gateway.do)
   server-url: https://openapi.alipay.com/gateway.do
-  # 应用ID (APPID)
-  app-id: 2021006160628246
-  # 商户私钥 (应用私钥) - 从环境变量读取，不要直接写在配置文件中
-  private-key: ${ALIPAY_PRIVATE_KEY:}
-  # 支付宝公钥
-  alipay-public-key: MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAgFcOshpQRjs4VhfrkHFv9Zaz70eTNeWTYS9LMfibHMWFF+iBEO890w/qzmkPeIpTnKIVIdPnheMoB/TunxYKS5j+Up0oZhQM4aTlQo5h3u2dm3gJANtBRm3MgiguwK6aFnP6KOhkD63D/FEET0Nwcivo6nY5OflTJA0e3VJYz1uL3kSlsf1kObkt1PZQVNMikYEd2K6Ok7T3uxrFaX+TiIL2GXK/P60tkwb9B7s5KoT+3vKIhsre6WSmPJNOZsrOpaWXRhnMmKpAJY3BGFH92UECZXtLbLRN6AwCJI7Mkkitq1c8WPDiAVPljOG0MRe8OlxkWJ2qNXDVXed/i0G6hQIDAQAB
   # 签名类型
   sign-type: RSA2
   # 字符编码
   charset: UTF-8
-  # 同步回调地址 (支付成功后跳转的前端页面)
-  return-url: ${ALIPAY_RETURN_URL:http://localhost:8080/starhome/alipay/return}
-  # 异步通知地址 (支付宝服务器通知的后端接口，需要公网可访问)
-  notify-url: ${ALIPAY_NOTIFY_URL:http://localhost:8080/starhome/alipay/notify}

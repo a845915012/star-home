@@ -1,0 +1,30 @@
+# ============================================================
+# 支付宝敏感配置文件示例
+# ============================================================
+# 使用方法：
+# 1. 复制此文件并重命名为 application-alipay.yml
+# 2. 填写下方所有配置项的真实值
+# 3. 启动时添加 alipay profile: --spring.profiles.active=local,druid,alipay
+#
+# 注意：application-alipay.yml 已加入 .gitignore，不会被提交到代码库
+# ============================================================
+
+alipay:
+  # 应用ID (APPID) - 在支付宝开放平台创建应用后获取
+  app-id: 2021006160628246
+  
+  # 应用私钥 (商户私钥) - 请替换为你的真实私钥，一行不要换行
+  private-key: 你的应用私钥内容
+  
+  # 支付宝公钥 - 在支付宝开放平台应用详情中获取
+  alipay-public-key: MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAgFcOshpQRjs4VhfrkHFv9Zaz70eTNeWTYS9LMfibHMWFF+iBEO890w/qzmkPeIpTnKIVIdPnheMoB/TunxYKS5j+Up0oZhQM4aTlQo5h3u2dm3gJANtBRm3MgiguwK6aFnP6KOhkD63D/FEET0Nwcivo6nY5OflTJA0e3VJYz1uL3kSlsf1kObkt1PZQVNMikYEd2K6Ok7T3uxrFaX+TiIL2GXK/P60tkwb9B7s5KoT+3vKIhsre6WSmPJNOZsrOpaWXRhnMmKpAJY3BGFH92UECZXtLbLRN6AwCJI7Mkkitq1c8WPDiAVPljOG0MRe8OlxkWJ2qNXDVXed/i0G6hQIDAQAB
+  
+  # 同步回调地址 (支付成功后跳转的前端页面)
+  # 本地开发: http://localhost:8080/starhome/alipay/return
+  # 生产环境: https://你的域名/starhome/alipay/return
+  return-url: http://localhost:8080/starhome/alipay/return
+  
+  # 异步通知地址 (支付宝服务器通知的后端接口，需要公网可访问)
+  # 本地开发: 需要使用内网穿透工具（如 ngrok）获取公网地址
+  # 生产环境: https://你的域名/starhome/alipay/notify
+  notify-url: http://localhost:8080/starhome/alipay/notify
