@@ -42,6 +42,11 @@ nbdist/
 *.xml.versionsBackup
 *.swp
 
+######################################################################
+# 敏感配置文件 - 包含密钥等敏感信息，禁止提交
+application-alipay.yml
+**/application-alipay.yml
+
 !*/build/*.java
 !*/build/*.html
 !*/build/*.xml

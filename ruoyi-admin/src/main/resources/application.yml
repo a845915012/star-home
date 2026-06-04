@@ -154,12 +154,12 @@ starhome:
 alipay:
   # 支付宝网关地址 (正式环境: https://openapi.alipay.com/gateway.do, 沙箱环境: https://openapi-sandbox.dl.alipaydev.com/gateway.do)
   server-url: https://openapi.alipay.com/gateway.do
-  # 应用ID (APPID) - 在支付宝开放平台创建应用后获取
-  app-id: ${ALIPAY_APP_ID:}
-  # 商户私钥 (应用私钥) - 使用支付宝密钥生成工具生成
+  # 应用ID (APPID)
+  app-id: 2021006160628246
+  # 商户私钥 (应用私钥) - 从环境变量读取，不要直接写在配置文件中
   private-key: ${ALIPAY_PRIVATE_KEY:}
-  # 支付宝公钥 - 在支付宝开放平台应用详情中获取
-  alipay-public-key: ${ALIPAY_PUBLIC_KEY:}
+  # 支付宝公钥
+  alipay-public-key: MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAgFcOshpQRjs4VhfrkHFv9Zaz70eTNeWTYS9LMfibHMWFF+iBEO890w/qzmkPeIpTnKIVIdPnheMoB/TunxYKS5j+Up0oZhQM4aTlQo5h3u2dm3gJANtBRm3MgiguwK6aFnP6KOhkD63D/FEET0Nwcivo6nY5OflTJA0e3VJYz1uL3kSlsf1kObkt1PZQVNMikYEd2K6Ok7T3uxrFaX+TiIL2GXK/P60tkwb9B7s5KoT+3vKIhsre6WSmPJNOZsrOpaWXRhnMmKpAJY3BGFH92UECZXtLbLRN6AwCJI7Mkkitq1c8WPDiAVPljOG0MRe8OlxkWJ2qNXDVXed/i0G6hQIDAQAB
   # 签名类型
   sign-type: RSA2
   # 字符编码
