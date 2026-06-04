@@ -13,6 +13,7 @@ import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.ruoyi.common.exception.ServiceException;
+import com.ruoyi.framework.security.util.SecurityFrameworkUtils;
 import com.ruoyi.starhome.config.AlipayConfig;
 import com.ruoyi.starhome.domain.FurnitureRechargeOrderDO;
 import com.ruoyi.starhome.domain.dto.AlipayRechargeRequest;
@@ -60,6 +61,7 @@ public class AlipayServiceImpl implements IAlipayService {
     @Override
     @Transactional(rollbackFor = Exception.class)
     public AlipayRechargeResponse createRechargeOrder(AlipayRechargeRequest request) {
+        request.setUserId(SecurityFrameworkUtils.getLoginUserId());
         // 参数校验
         validateRequest(request);
 
@@ -98,6 +100,7 @@ public class AlipayServiceImpl implements IAlipayService {
     @Override
     @Transactional(rollbackFor = Exception.class)
     public AlipayRechargeResponse createH5RechargeOrder(AlipayRechargeRequest request) {
+        request.setUserId(SecurityFrameworkUtils.getLoginUserId());
         // 参数校验
         validateRequest(request);
 
