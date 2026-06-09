@@ -47,6 +47,7 @@ nbdist/
 application-alipay.yml
 **/application-alipay.yml
 application-ssl.yml
+application-sms.yml
 **/application-ssl.yml
 *.jks
 *.p12
