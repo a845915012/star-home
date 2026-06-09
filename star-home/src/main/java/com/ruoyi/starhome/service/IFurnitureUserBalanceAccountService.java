@@ -18,7 +18,8 @@ public interface IFurnitureUserBalanceAccountService {
 
     void consume(Long userId, BigDecimal amount);
 
-    FurnitureUserBalanceRecordsPageResp getUserBalanceRecords(Long userId);
+    FurnitureUserBalanceRecordsPageResp getUserBalanceRecords(Long userId, Integer type, Integer pageNum, Integer pageSize);
+    BigDecimal getUserBalance(Long userId);
 
 }
 

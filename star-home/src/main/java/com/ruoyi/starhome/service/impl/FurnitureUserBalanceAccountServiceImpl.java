@@ -1,6 +1,8 @@
 package com.ruoyi.starhome.service.impl;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.github.pagehelper.PageHelper;
+import com.github.pagehelper.PageInfo;
 import com.ruoyi.common.core.domain.entity.SysUser;
 import com.ruoyi.common.exception.ServiceException;
 import com.ruoyi.starhome.domain.FurnitureUserBalanceAccountDO;
@@ -72,7 +74,7 @@ public class FurnitureUserBalanceAccountServiceImpl implements IFurnitureUserBal
     }
 
     @Override
-    public FurnitureUserBalanceRecordsPageResp getUserBalanceRecords(Long userId) {
+    public FurnitureUserBalanceRecordsPageResp getUserBalanceRecords(Long userId, Integer type, Integer pageNum, Integer pageSize) {
         if (userId == null) {
             throw new ServiceException("userId不能为空");
         }
@@ -90,13 +92,37 @@ public class FurnitureUserBalanceAccountServiceImpl implements IFurnitureUserBal
             resp.setBalance(BigDecimal.ZERO);
             resp.setUseBalance(BigDecimal.ZERO);
         }
+
+        int resolvedPageNum = pageNum == null || pageNum < 1 ? 1 : pageNum;
+        int resolvedPageSize = pageSize == null || pageSize < 1 ? 10 : pageSize;
+
+        PageHelper.startPage(resolvedPageNum, resolvedPageSize);
         List<FurnitureUserBalanceRecordsDO> records = furnitureUserBalanceRecordsMapper.selectList(
                 new LambdaQueryWrapper<FurnitureUserBalanceRecordsDO>()
+                        .eq(type != null, FurnitureUserBalanceRecordsDO::getType, type)
                         .eq(FurnitureUserBalanceRecordsDO::getUserId, userId)
                         .orderByDesc(FurnitureUserBalanceRecordsDO::getId)
         );
+        PageInfo<FurnitureUserBalanceRecordsDO> pageInfo = new PageInfo<>(records);
         resp.setList(records);
+        resp.setTotal(pageInfo.getTotal());
+        resp.setPageNum(pageInfo.getPageNum());
+        resp.setPageSize(pageInfo.getPageSize());
+        resp.setPages(pageInfo.getPages());
         return resp;
+    }
+
+    @Override
+    public BigDecimal getUserBalance(Long userId) {
+        if (userId == null) {
+            throw new ServiceException("userId不能为空");
+        }
+        FurnitureUserBalanceAccountDO furnitureUserBalanceRecordsDO = furnitureUserBalanceAccountMapper.selectOne(new LambdaQueryWrapper<FurnitureUserBalanceAccountDO>()
+                .eq(FurnitureUserBalanceAccountDO::getUserId, userId));
+        if(furnitureUserBalanceRecordsDO == null){
+            throw new ServiceException("用户账户不存在");
+        }
+        return furnitureUserBalanceRecordsDO.getBalance();
     }
 
     private void validateOperate(Long userId, BigDecimal amount) {

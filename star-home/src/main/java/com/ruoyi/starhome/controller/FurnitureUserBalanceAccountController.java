@@ -6,6 +6,7 @@ import com.ruoyi.common.core.controller.BaseController;
 import com.ruoyi.common.core.domain.AjaxResult;
 import com.ruoyi.common.core.page.TableDataInfo;
 import com.ruoyi.common.enums.BusinessType;
+import com.ruoyi.framework.security.util.SecurityFrameworkUtils;
 import com.ruoyi.starhome.domain.dto.FurnitureUserBalanceAccountPageRequest;
 import com.ruoyi.starhome.domain.dto.FurnitureUserBalanceOperateRequest;
 import com.ruoyi.starhome.domain.dto.FurnitureUserBalanceRecordsPageResp;
@@ -19,11 +20,7 @@ import io.swagger.v3.oas.annotations.media.ExampleObject;
 import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
 
@@ -74,13 +71,29 @@ public class FurnitureUserBalanceAccountController extends BaseController {
         return success();
     }
 
-    @Operation(summary = "查询用户余额明细", description = "传入userId，返回用户名、余额、已使用余额及明细列表")
+    @Operation(summary = "查询用户余额明细", description = "返回用户名、余额、已使用余额及明细列表")
     @Parameters({
-            @Parameter(name = "userId", description = "用户ID", example = "1001", required = true)
+            @Parameter(name = "type", description = "类型，1：充值，2：消费", example = "1"),
+            @Parameter(name = "pageNum", description = "页码", example = "1"),
+            @Parameter(name = "pageSize", description = "每页条数", example = "10")
     })
     @GetMapping("/records")
-    public AjaxResult records(Long userId) {
-        FurnitureUserBalanceRecordsPageResp resp = furnitureUserBalanceAccountService.getUserBalanceRecords(userId);
+    public AjaxResult records(@RequestParam(name = "type", required = false) Integer type,
+                              @RequestParam(name = "pageNum", required = false, defaultValue = "1") Integer pageNum,
+                              @RequestParam(name = "pageSize", required = false, defaultValue = "10") Integer pageSize) {
+        FurnitureUserBalanceRecordsPageResp resp = furnitureUserBalanceAccountService.getUserBalanceRecords(
+                SecurityFrameworkUtils.getLoginUserId(),
+                type,
+                pageNum,
+                pageSize
+        );
         return success(resp);
+    }
+
+    @Operation(summary = "查询用户余额")
+
+    @GetMapping("/getUserBalance")
+    public AjaxResult getUserBalance() {
+        return success(furnitureUserBalanceAccountService.getUserBalance(SecurityFrameworkUtils.getLoginUserId()));
     }
 }

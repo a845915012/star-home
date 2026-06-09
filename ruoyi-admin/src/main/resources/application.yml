@@ -55,7 +55,7 @@ spring:
     basename: i18n/messages
   profiles:
     # 默认启用本地环境 + 数据源配置
-    active: local,druid
+    active: local,druid,sms
   # 文件上传
   servlet:
     multipart:

@@ -12,4 +12,8 @@ public class FurnitureUserBalanceRecordsPageResp {
     private BigDecimal balance;
     private BigDecimal useBalance;
     private List<FurnitureUserBalanceRecordsDO> list;
+    private Long total;
+    private Integer pageNum;
+    private Integer pageSize;
+    private Integer pages;
 }
