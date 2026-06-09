@@ -51,4 +51,14 @@ public class CacheConstants
      * 被挤下线标记（token -> 1）
      */
     public static final String LOGIN_KICKED_KEY = "login_kicked:";
+
+    /**
+     * 短信验证码 redis key
+     */
+    public static final String SMS_CODE_KEY = "sms_code:";
+
+    /**
+     * 短信发送频率限制 redis key
+     */
+    public static final String SMS_SEND_LIMIT_KEY = "sms_send_limit:";
 }
