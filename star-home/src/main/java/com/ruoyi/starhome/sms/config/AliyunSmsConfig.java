@@ -2,6 +2,8 @@ package com.ruoyi.starhome.sms.config;
 
 import com.aliyun.dysmsapi20170525.Client;
 import com.aliyun.teaopenapi.models.Config;
+import com.ruoyi.common.exception.ServiceException;
+import com.ruoyi.common.utils.StringUtils;
 import lombok.Data;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.context.annotation.Bean;
@@ -50,9 +52,18 @@ public class AliyunSmsConfig {
      */
     @Bean
     public Client aliyunSmsClient() throws Exception {
-        Config config = new Config()
+        if (StringUtils.isEmpty(accessKeyId) || StringUtils.isEmpty(accessKeySecret)) {
+            throw new ServiceException("阿里云短信AccessKey未配置");
+        }
+
+        com.aliyun.credentials.models.Config credentialConfig = new com.aliyun.credentials.models.Config()
+                .setType("access_key")
                 .setAccessKeyId(accessKeyId)
                 .setAccessKeySecret(accessKeySecret);
+        com.aliyun.credentials.Client credentialClient = new com.aliyun.credentials.Client(credentialConfig);
+
+        Config config = new Config()
+                .setCredential(credentialClient);
         // 显式指定 HTTPS 协议与接入点
         config.endpoint = endpoint;
         config.protocol = "HTTPS";

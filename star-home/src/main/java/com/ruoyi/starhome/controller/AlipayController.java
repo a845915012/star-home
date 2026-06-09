@@ -112,12 +112,12 @@ public class AlipayController extends BaseController {
         log.info("支付宝同步回调, 订单号: {}", orderNo);
 
         // 查询订单状态
-        Integer payStatus = alipayService.queryPayStatus(orderNo);
+        FurnitureRechargeOrderDO rechargeOrderDO = alipayService.queryPayStatus(orderNo);
         FurnitureRechargeOrderDO order = alipayService.getOrderByOrderNo(orderNo);
 
         Map<String, Object> result = new HashMap<>();
         result.put("orderNo", orderNo);
-        result.put("payStatus", payStatus);
+        result.put("payStatus", rechargeOrderDO.getPayStatus());
         result.put("amount", order != null ? order.getAmount() : null);
         result.put("payTime", order != null ? order.getPayTime() : null);
 

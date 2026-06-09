@@ -71,6 +71,8 @@ public class SmsCodeServiceImpl implements ISmsCodeService {
                 .setSignName(smsConfig.getSignName())
                 .setTemplateCode(smsConfig.getTemplateCode())
                 .setTemplateParam("{\"code\":\"" + code + "\"}");
+        String bizId = null;
+        String requestId = null;
         try {
             SendSmsResponse response = aliyunSmsClient.sendSms(request);
             SendSmsResponseBody body = response.getBody();
@@ -80,6 +82,8 @@ public class SmsCodeServiceImpl implements ISmsCodeService {
                         phone, body == null ? null : body.getCode(), errMsg);
                 throw new ServiceException("短信发送失败:" + errMsg);
             }
+            bizId = body.getBizId();
+            requestId = body.getRequestId();
         } catch (ServiceException e) {
             throw e;
         } catch (Exception e) {
@@ -92,7 +96,7 @@ public class SmsCodeServiceImpl implements ISmsCodeService {
                 (int) CODE_EXPIRE_MINUTES, TimeUnit.MINUTES);
         // 设置发送频率限制标记
         redisCache.setCacheObject(limitKey, "1", (int) SEND_LIMIT_SECONDS, TimeUnit.SECONDS);
-        log.info("[v0] 短信验证码已发送, phone={}", phone);
+        log.info("[v0] 短信验证码已提交阿里云, phone={}, bizId={}, requestId={}", phone, bizId, requestId);
     }
 
     @Override
