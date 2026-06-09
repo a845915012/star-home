@@ -58,6 +58,13 @@
             <artifactId>alipay-sdk-java</artifactId>
             <version>4.39.79.ALL</version>
         </dependency>
+
+        <!-- 阿里云短信SDK -->
+        <dependency>
+            <groupId>com.aliyun</groupId>
+            <artifactId>dysmsapi20170525</artifactId>
+            <version>3.0.0</version>
+        </dependency>
     </dependencies>
 
 </project>
