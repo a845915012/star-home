@@ -60,6 +60,18 @@ public class SysRegisterService
         {
             msg = "用户密码不能为空";
         }
+        else if (StringUtils.isEmpty(registerBody.getPhone()))
+        {
+            msg = "手机号不能为空";
+        }
+        else if (StringUtils.isEmpty(registerBody.getSmsCode()))
+        {
+            msg = "短信验证码不能为空";
+        }
+        else if (!validateSmsCode(registerBody.getPhone(), registerBody.getSmsCode()))
+        {
+            msg = "短信验证码错误或已失效";
+        }
         else if (username.length() < UserConstants.USERNAME_MIN_LENGTH
                 || username.length() > UserConstants.USERNAME_MAX_LENGTH)
         {
@@ -117,5 +129,29 @@ public class SysRegisterService
         {
             throw new CaptchaException();
         }
+    }
+
+    /**
+     * 校验短信验证码
+     *
+     * @param phone 手机号
+     * @param smsCode 短信验证码
+     * @return 校验通过返回 true
+     */
+    public boolean validateSmsCode(String phone, String smsCode)
+    {
+        String verifyKey = CacheConstants.SMS_CODE_KEY + StringUtils.nvl(phone, "");
+        String cacheCode = redisCache.getCacheObject(verifyKey);
+        if (StringUtils.isEmpty(cacheCode))
+        {
+            return false;
+        }
+        boolean matched = smsCode.equals(cacheCode);
+        if (matched)
+        {
+            // 校验通过后立即删除,防止重复使用
+            redisCache.deleteObject(verifyKey);
+        }
+        return matched;
     }
 }

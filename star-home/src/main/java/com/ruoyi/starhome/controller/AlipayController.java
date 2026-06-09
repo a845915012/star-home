@@ -102,6 +102,29 @@ public class AlipayController extends BaseController {
     }
 
     /**
+     * 支付宝同步回调
+     * 用户支付完成后跳转的页面
+     */
+    @Anonymous
+    @Operation(summary = "支付宝同步回调", description = "用户支付完成后跳转回来的页面，可用于前端展示支付结果")
+    @GetMapping("/return")
+    public AjaxResult returnUrl(@RequestParam("out_trade_no") String orderNo) {
+        log.info("支付宝同步回调, 订单号: {}", orderNo);
+
+        // 查询订单状态
+        Integer payStatus = alipayService.queryPayStatus(orderNo);
+        FurnitureRechargeOrderDO order = alipayService.getOrderByOrderNo(orderNo);
+
+        Map<String, Object> result = new HashMap<>();
+        result.put("orderNo", orderNo);
+        result.put("payStatus", payStatus);
+        result.put("amount", order != null ? order.getAmount() : null);
+        result.put("payTime", order != null ? order.getPayTime() : null);
+
+        return success(result);
+    }
+
+    /**
      * 查询订单支付状态
      */
     @Operation(summary = "查询订单支付状态", description = "根据订单号查询充值订单的支付状态")

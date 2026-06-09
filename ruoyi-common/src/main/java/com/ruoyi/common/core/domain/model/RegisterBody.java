@@ -8,6 +8,7 @@ package com.ruoyi.common.core.domain.model;
 public class RegisterBody extends LoginBody {
     private String phone;
     private String email;
+    private String smsCode;
 
     public String getPhone() {
         return phone;
@@ -23,5 +24,13 @@ public class RegisterBody extends LoginBody {
 
     public void setEmail(String email) {
         this.email = email;
+    }
+
+    public String getSmsCode() {
+        return smsCode;
+    }
+
+    public void setSmsCode(String smsCode) {
+        this.smsCode = smsCode;
     }
 }
