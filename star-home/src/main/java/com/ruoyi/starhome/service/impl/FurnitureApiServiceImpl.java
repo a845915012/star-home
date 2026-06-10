@@ -7,7 +7,6 @@ import com.ruoyi.starhome.domain.dto.ImageGenerateVideoClientRequest;
 import com.ruoyi.starhome.domain.dto.ImageGenerateVideoRequest;
 import com.ruoyi.starhome.domain.dto.TaskApiInvokeRequest;
 import com.ruoyi.starhome.domain.dto.TaskApiInvokeResponse;
-import com.ruoyi.starhome.enums.ConsumeConstants;
 import com.ruoyi.starhome.service.IFurnitureApiService;
 import com.ruoyi.starhome.service.ITaskApiInvokeService;
 import org.apache.commons.lang3.StringUtils;
@@ -40,7 +39,7 @@ public class FurnitureApiServiceImpl implements IFurnitureApiService {
         }
         taskRequest.setQuestion(question.toString());
         taskRequest.setModule("视觉设计");
-        taskRequest.setConsumeConstants(ConsumeConstants.IMAGE2IMAGE_FINAL);
+        taskRequest.setConsumeCode(request.getConsumeCode());
         TaskApiInvokeResponse response = taskApiInvokeService.invokeGeminiImageApi(taskRequest);
         response.setApiResult(response.getApiResult());
         return response;
@@ -59,7 +58,7 @@ public class FurnitureApiServiceImpl implements IFurnitureApiService {
         }
         taskRequest.setQuestion(textPrompt);
         taskRequest.setModule("灵感文案");
-        taskRequest.setConsumeConstants(ConsumeConstants.IMAGE2TEXT);
+        taskRequest.setConsumeCode(request.getConsumeCode());
         return taskApiInvokeService.invokeTaskApi(taskRequest);
     }
 
@@ -72,7 +71,7 @@ public class FurnitureApiServiceImpl implements IFurnitureApiService {
 //            taskRequest.setUseSse(false);
 //            taskRequest.setQuestion("根据图片主体生成描述该主体的视频");
 //            taskRequest.setModule("图生视频");
-//            taskRequest.setConsumeConstants(ConsumeConstants.IMAGE2VIDEOTEXT);
+//            taskRequest.setConsumeCode(request.getConsumeCode());
 //            taskRequest.setFilePaths(request.getImageUrls());
 //
 //            TaskApiInvokeResponse descriptionResponse = taskApiInvokeService.invokeTaskApi(taskRequest);
@@ -88,7 +87,7 @@ public class FurnitureApiServiceImpl implements IFurnitureApiService {
         serviceRequest.setImageUrls(request.getImageUrls());
         serviceRequest.setGenerateDescription(request.getGenerateDescription());
         // 后端业务字段统一在服务内赋值
-        serviceRequest.setConsumeConstants(ConsumeConstants.IMAGE2VIDEO);
+        serviceRequest.setConsumeCode(request.getConsumeCode());
         serviceRequest.setPrompt(buildFirstSegmentPrompt(request.getProduct(), request.getMaterial(),request.getPrompt()));
 
         return taskApiInvokeService.imageGenerateVideo(serviceRequest);

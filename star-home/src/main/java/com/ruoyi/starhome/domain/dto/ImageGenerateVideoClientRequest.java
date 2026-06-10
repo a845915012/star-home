@@ -7,6 +7,7 @@ import java.util.List;
 @Data
 public class ImageGenerateVideoClientRequest {
     private String apiNumber;
+    private String consumeCode;
     private String product;
     private String material;
     private List<String> imageUrls;

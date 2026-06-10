@@ -1,10 +1,10 @@
 package com.ruoyi.starhome.domain.dto;
 
-import com.ruoyi.starhome.enums.ConsumeConstants;
 import lombok.Data;
 
 import java.io.Serial;
 import java.io.Serializable;
+import java.math.BigDecimal;
 import java.util.List;
 
 @Data
@@ -29,5 +29,7 @@ public class TaskApiInvokeRequest implements Serializable {
     /**
      * 消费
      */
-    private ConsumeConstants consumeConstants;
+    private String consumeCode;
+
+    private BigDecimal consumePrice;
 }

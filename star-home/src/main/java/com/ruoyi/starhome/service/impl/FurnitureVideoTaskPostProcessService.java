@@ -9,7 +9,6 @@ import com.ruoyi.framework.manager.AsyncManager;
 import com.ruoyi.starhome.domain.FurnitureVideoGenerationTaskDO;
 import com.ruoyi.starhome.domain.FurnitureVideoTaskDO;
 import com.ruoyi.starhome.domain.dto.ImageGenerateVideoRequest;
-import com.ruoyi.starhome.enums.ConsumeConstants;
 import com.ruoyi.starhome.mapper.FurnitureVideoGenerationTaskMapper;
 import com.ruoyi.starhome.mapper.FurnitureVideoTaskMapper;
 import com.ruoyi.starhome.service.ITaskApiInvokeService;
@@ -209,7 +208,7 @@ public class FurnitureVideoTaskPostProcessService {
         retryReq.setImageUrls(Collections.singletonList(currentTask.getImageUrl()));
 //        retryReq.setImageUrls(resolveRetryImageUrls(generationTask, currentTask));
         log.info("retry failed video task, retryReq={}", retryReq);
-        retryReq.setConsumeConstants(ConsumeConstants.IMAGE2VIDEO);
+        retryReq.setConsumeCode(resolveGenerationConsumeCode(generationTask));
         if (retryReq.getImageUrls() == null || retryReq.getImageUrls().isEmpty()) {
             log.warn("视频任务失败后重试被跳过, 未找到有效入参图片, taskId={}", currentTask.getTaskId());
             return;
@@ -278,7 +277,7 @@ public class FurnitureVideoTaskPostProcessService {
         nextReq.setProduct(generationTask.getProduct());
         nextReq.setMaterial(generationTask.getMaterial());
         nextReq.setPrompt(resolveNextPrompt(generationTask));
-        nextReq.setConsumeConstants(ConsumeConstants.IMAGE2VIDEO);
+        nextReq.setConsumeCode(resolveGenerationConsumeCode(generationTask));
         try {
             taskApiInvokeService.imageGenerateVideo(nextReq);
 
@@ -403,6 +402,13 @@ public class FurnitureVideoTaskPostProcessService {
                 "缓慢拉远 \n" +
                 "回到完整家具构图 \n" +
                 "最终帧 = 再次精确还原原始图片";
+    }
+
+    private String resolveGenerationConsumeCode(FurnitureVideoGenerationTaskDO generationTask) {
+        if (generationTask != null && generationTask.getConsumeCode() != null && !generationTask.getConsumeCode().isBlank()) {
+            return generationTask.getConsumeCode();
+        }
+        return "IMAGE2VIDEO";
     }
 
     private boolean isSuccessStatus(String status) {

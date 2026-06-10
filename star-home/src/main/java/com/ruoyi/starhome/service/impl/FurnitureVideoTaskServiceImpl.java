@@ -5,9 +5,9 @@ import com.github.pagehelper.PageHelper;
 import com.ruoyi.common.config.RuoYiConfig;
 import com.ruoyi.common.exception.ServiceException;
 import com.ruoyi.common.utils.SecurityUtils;
+import com.ruoyi.starhome.domain.FurnitureConsumeConfigDO;
 import com.ruoyi.starhome.domain.FurnitureNumberApiPoolDO;
 import com.ruoyi.starhome.domain.FurnitureVideoGenerationTaskDO;
-import com.ruoyi.starhome.enums.ConsumeConstants;
 import com.ruoyi.starhome.domain.FurnitureVideoTaskDO;
 import com.ruoyi.starhome.domain.dto.FurnitureVideoTaskPageItemResp;
 import com.ruoyi.starhome.domain.dto.FurnitureVideoTaskPageRequest;
@@ -15,6 +15,7 @@ import com.ruoyi.starhome.domain.dto.FurnitureVideoTaskPageResp;
 import com.ruoyi.starhome.mapper.FurnitureNumberApiPoolMapper;
 import com.ruoyi.starhome.mapper.FurnitureVideoGenerationTaskMapper;
 import com.ruoyi.starhome.mapper.FurnitureVideoTaskMapper;
+import com.ruoyi.starhome.service.IFurnitureConsumeConfigService;
 import com.ruoyi.starhome.service.IFurnitureUserBalanceAccountService;
 import com.ruoyi.starhome.service.IFurnitureVideoTaskService;
 import com.ruoyi.starhome.service.ITaskApiInvokeService;
@@ -31,6 +32,7 @@ import org.springframework.stereotype.Service;
 
 import java.io.File;
 import java.io.IOException;
+import java.math.BigDecimal;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -69,6 +71,10 @@ public class FurnitureVideoTaskServiceImpl implements IFurnitureVideoTaskService
 
     @Autowired
     private IFurnitureUserBalanceAccountService furnitureUserBalanceAccountService;
+
+    @Autowired
+    private IFurnitureConsumeConfigService furnitureConsumeConfigService;
+
     @Autowired
     private ITaskApiInvokeService taskApiInvokeService;
 
@@ -156,8 +162,18 @@ public class FurnitureVideoTaskServiceImpl implements IFurnitureVideoTaskService
         successUpdate.setStatus("success");
         successUpdate.setErrorMessage(null);
         furnitureVideoGenerationTaskMapper.updateById(successUpdate);
-        furnitureUserBalanceAccountService.consume(header.getUserId(), ConsumeConstants.IMAGE2VIDEO.getPrice());
+        furnitureUserBalanceAccountService.consume(header.getUserId(), resolveVideoConsumePrice(header));
         taskApiInvokeService.completeDeferredVideoUsageRecord(header.getId(), mergedRemoteUrl, "SUCCESS");
+    }
+
+    private BigDecimal resolveVideoConsumePrice(FurnitureVideoGenerationTaskDO header) {
+        if (header != null && header.getConsumePrice() != null) {
+            return header.getConsumePrice();
+        }
+        String consumeCode = header == null || header.getConsumeCode() == null || header.getConsumeCode().isBlank()
+                ? "IMAGE2VIDEO" : header.getConsumeCode();
+        FurnitureConsumeConfigDO consumeConfig = furnitureConsumeConfigService.selectEnabledByCode(consumeCode);
+        return consumeConfig.getPrice() == null ? BigDecimal.ZERO : consumeConfig.getPrice();
     }
 
     private String mergeLocalMp4Videos(List<String> localSegmentUrls) {

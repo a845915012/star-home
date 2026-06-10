@@ -13,6 +13,7 @@ import com.ruoyi.starhome.domain.dto.*;
 import com.ruoyi.starhome.enums.AiModeConstants;
 import com.ruoyi.starhome.mapper.*;
 import com.ruoyi.starhome.service.IApiCallMonitorCacheService;
+import com.ruoyi.starhome.service.IFurnitureConsumeConfigService;
 import com.ruoyi.starhome.service.IFurnitureUserBalanceAccountService;
 import com.ruoyi.starhome.service.ITaskApiInvokeService;
 import com.ruoyi.starhome.util.StarhomeFileUrlUtils;
@@ -62,6 +63,9 @@ public class TaskApiInvokeServiceImpl implements ITaskApiInvokeService {
     private IFurnitureUserBalanceAccountService furnitureUserBalanceAccountService;
 
     @Autowired
+    private IFurnitureConsumeConfigService furnitureConsumeConfigService;
+
+    @Autowired
     private FurnitureAiCallRecordsMapper furnitureAiCallRecordsMapper;
 
     @Autowired
@@ -88,14 +92,16 @@ public class TaskApiInvokeServiceImpl implements ITaskApiInvokeService {
             throw new ServiceException("userId和apiNumber不能为空");
         }
 
-        validateBalanceEnough(request.getUserId(),request.getConsumeConstants().getPrice());
+        BigDecimal consumePrice = resolveConsumePrice(request.getConsumeCode());
+        request.setConsumePrice(consumePrice);
+        validateBalanceEnough(request.getUserId(), consumePrice);
 
         AiApiCallResult callResult = callAiApiByApiNumber(request);
 
         recordUsageAsyncFromTaskApi(request, callResult);
 
         // 业务完成后扣减余额
-        furnitureUserBalanceAccountService.consume(request.getUserId(), request.getConsumeConstants().getPrice());
+        furnitureUserBalanceAccountService.consume(request.getUserId(), consumePrice);
 
         // 调用监控先写缓存
         apiCallMonitorCacheService.recordCall(request.getUserId());
@@ -103,7 +109,7 @@ public class TaskApiInvokeServiceImpl implements ITaskApiInvokeService {
         TaskApiInvokeResponse response = new TaskApiInvokeResponse();
         response.setUserId(request.getUserId());
         response.setApiNumber(request.getApiNumber());
-        response.setCallCost(callResult.getCallCost());
+        response.setCallCost(consumePrice);
         response.setApiResult(callResult.getApiResult());
         return response;
     }
@@ -127,7 +133,9 @@ public class TaskApiInvokeServiceImpl implements ITaskApiInvokeService {
             throw new ServiceException("文件地址不能为空");
         }
 
-        validateBalanceEnough(request.getUserId(),request.getConsumeConstants().getPrice());
+        BigDecimal consumePrice = resolveConsumePrice(request.getConsumeCode());
+        request.setConsumePrice(consumePrice);
+        validateBalanceEnough(request.getUserId(), consumePrice);
 
         AiApiCallResult callResult = callGeminiImageApiByApiNumber(request);
 
@@ -135,20 +143,20 @@ public class TaskApiInvokeServiceImpl implements ITaskApiInvokeService {
                 request.getUserId(),
                 request.getModule(),
                 AiModeConstants.IMAGE_IMAGE_AI.getAiMode(),
-                request.getConsumeConstants().getPrice(),
+                consumePrice,
                 request.getQuestion(),
                 request.getFilePaths() == null ? null : String.join(",", request.getFilePaths()),
                 callResult.getApiResult(),
                 callResult.getUsageRaw()
         );
 
-        furnitureUserBalanceAccountService.consume(request.getUserId(), request.getConsumeConstants().getPrice());
+        furnitureUserBalanceAccountService.consume(request.getUserId(), consumePrice);
         apiCallMonitorCacheService.recordCall(request.getUserId());
 
         TaskApiInvokeResponse response = new TaskApiInvokeResponse();
         response.setUserId(request.getUserId());
         response.setApiNumber(request.getApiNumber());
-        response.setCallCost(callResult.getCallCost());
+        response.setCallCost(consumePrice);
         response.setApiResult(callResult.getApiResult());
         return response;
     }
@@ -185,7 +193,9 @@ public class TaskApiInvokeServiceImpl implements ITaskApiInvokeService {
         }
 
         // 先校验余额，扣费延后到任务成功后统一处理
-        validateBalanceEnough(userId,request.getConsumeConstants().getPrice());
+        BigDecimal consumePrice = resolveConsumePrice(request.getConsumeCode());
+        request.setConsumePrice(consumePrice);
+        validateBalanceEnough(userId, consumePrice);
 
         String apiNumber = request.getApiNumber();
         if (apiNumber == null || apiNumber.isBlank()) {
@@ -229,7 +239,7 @@ public class TaskApiInvokeServiceImpl implements ITaskApiInvokeService {
             }
             createDeferredVideoUsageRecord(userId, "动态影像", AiModeConstants.IMAGE_VIDEO_AI.getAiMode(), generationTaskId,
                     request.getPrompt(), String.join(",", publicImageUrls),
-                    request.getConsumeConstants() == null ? BigDecimal.ZERO : request.getConsumeConstants().getPrice());
+                    request.getConsumePrice() == null ? BigDecimal.ZERO : request.getConsumePrice());
             FurnitureVideoGenerationTaskDO generationTaskDO;
             if (generationTaskId == null) {
                 generationTaskDO = new FurnitureVideoGenerationTaskDO();
@@ -237,6 +247,8 @@ public class TaskApiInvokeServiceImpl implements ITaskApiInvokeService {
                 generationTaskDO.setProduct(request.getProduct());
                 generationTaskDO.setMaterial(request.getMaterial());
                 generationTaskDO.setImageUrl(publicImageUrls.toString());
+                generationTaskDO.setConsumeCode(request.getConsumeCode());
+                generationTaskDO.setConsumePrice(consumePrice);
                 generationTaskDO.setExpectedTaskCount(2);
                 generationTaskDO.setCurrentTaskCount(0);
                 generationTaskDO.setStatus("process");
@@ -250,6 +262,14 @@ public class TaskApiInvokeServiceImpl implements ITaskApiInvokeService {
                 FurnitureVideoGenerationTaskDO updateHeader = new FurnitureVideoGenerationTaskDO();
                 updateHeader.setId(generationTaskId);
                 updateHeader.setStatus("process");
+                if (generationTaskDO.getConsumeCode() == null || generationTaskDO.getConsumeCode().isBlank()) {
+                    updateHeader.setConsumeCode(request.getConsumeCode());
+                    generationTaskDO.setConsumeCode(request.getConsumeCode());
+                }
+                if (generationTaskDO.getConsumePrice() == null) {
+                    updateHeader.setConsumePrice(consumePrice);
+                    generationTaskDO.setConsumePrice(consumePrice);
+                }
                 if ((generationTaskDO.getProduct() == null || generationTaskDO.getProduct().isBlank()) && request.getProduct() != null && !request.getProduct().isBlank()) {
                     updateHeader.setProduct(request.getProduct());
                     generationTaskDO.setProduct(request.getProduct());
@@ -283,7 +303,7 @@ public class TaskApiInvokeServiceImpl implements ITaskApiInvokeService {
             TaskApiInvokeResponse response = new TaskApiInvokeResponse();
             response.setUserId(videoTask.getUserId());
             response.setApiNumber(apiNumber);
-            response.setCallCost(request.getConsumeConstants().getPrice());
+            response.setCallCost(consumePrice);
             response.setApiResult(rawResponse);
             return response;
         } catch (IOException e) {
@@ -1186,7 +1206,7 @@ public class TaskApiInvokeServiceImpl implements ITaskApiInvokeService {
                 defaultZero(tokenIn),
                 defaultZero(tokenOut),
                 defaultZero(totalToken),
-                totalPrice == null ? request.getConsumeConstants().getPrice() : totalPrice,
+                totalPrice == null ? defaultZero(request.getConsumePrice()) : totalPrice,
                 null,
                 request.getQuestion(),
                 request.getFilePaths() == null ? null : String.join(",", request.getFilePaths()),
@@ -1423,6 +1443,11 @@ public class TaskApiInvokeServiceImpl implements ITaskApiInvokeService {
         if (balance == null || balance.compareTo(cost) < 0) {
             throw new ServiceException("余额不足");
         }
+    }
+
+    private BigDecimal resolveConsumePrice(String consumeCode) {
+        FurnitureConsumeConfigDO consumeConfig = furnitureConsumeConfigService.selectEnabledByCode(consumeCode);
+        return consumeConfig.getPrice() == null ? BigDecimal.ZERO : consumeConfig.getPrice();
     }
 
     private BigDecimal defaultZero(BigDecimal value) {

@@ -7,6 +7,7 @@ import lombok.Data;
 
 import java.io.Serial;
 import java.io.Serializable;
+import java.math.BigDecimal;
 import java.time.LocalDateTime;
 
 @Data
@@ -27,6 +28,8 @@ public class FurnitureVideoGenerationTaskDO implements Serializable {
      */
     private String material;
     private String imageUrl;
+    private String consumeCode;
+    private BigDecimal consumePrice;
     /**
      * 期望任务数
      */

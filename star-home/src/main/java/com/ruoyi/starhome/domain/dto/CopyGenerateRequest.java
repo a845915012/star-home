@@ -12,6 +12,8 @@ public class CopyGenerateRequest implements Serializable {
     private static final long serialVersionUID = 1L;
     @Schema(description = "编码")
     private String apiNumber;
+    @Schema(description = "消费配置编码")
+    private String consumeCode;
     @Schema(description = "原始图片URL数组")
     private List<String> filePaths;
     @Schema(description = "风格提示词")

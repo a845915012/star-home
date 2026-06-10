@@ -1,8 +1,8 @@
 package com.ruoyi.starhome.domain.dto;
 
-import com.ruoyi.starhome.enums.ConsumeConstants;
 import lombok.Data;
 
+import java.math.BigDecimal;
 import java.util.List;
 
 @Data
@@ -18,5 +18,6 @@ public class ImageGenerateVideoRequest {
     private String prompt;
     private Boolean generateDescription;
     private Long generationTaskId;
-    private ConsumeConstants consumeConstants;
+    private String consumeCode;
+    private BigDecimal consumePrice;
 }

@@ -3,6 +3,7 @@ package com.ruoyi.starhome.config;
 import com.alipay.api.AlipayClient;
 import com.alipay.api.DefaultAlipayClient;
 import lombok.Data;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -10,6 +11,7 @@ import org.springframework.context.annotation.Configuration;
 /**
  * 支付宝支付配置
  */
+@Slf4j
 @Data
 @Configuration
 @ConfigurationProperties(prefix = "alipay")
