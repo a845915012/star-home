@@ -49,7 +49,7 @@ public class AlipayController extends BaseController {
             description = "充值请求参数",
             content = @Content(
                     schema = @Schema(implementation = AlipayRechargeRequest.class),
-                    examples = @ExampleObject(value = "{\"userId\":1001,\"amount\":100.00,\"subject\":\"账户充值\"}")
+                    examples = @ExampleObject(value = "{\"packageId\":1,\"subject\":\"账户充值\"}")
             )
     )
     @PostMapping("/recharge/pc")
@@ -67,7 +67,7 @@ public class AlipayController extends BaseController {
             description = "充值请求参数",
             content = @Content(
                     schema = @Schema(implementation = AlipayRechargeRequest.class),
-                    examples = @ExampleObject(value = "{\"userId\":1001,\"amount\":50.00,\"subject\":\"账户充值\"}")
+                    examples = @ExampleObject(value = "{\"packageId\":1,\"subject\":\"账户充值\"}")
             )
     )
     @PostMapping("/recharge/h5")
@@ -119,6 +119,9 @@ public class AlipayController extends BaseController {
         result.put("orderNo", orderNo);
         result.put("payStatus", rechargeOrderDO.getPayStatus());
         result.put("amount", order != null ? order.getAmount() : null);
+        result.put("payAmount", order != null ? order.getAmount() : null);
+        result.put("provideAmount", order != null ? order.getProvideAmount() : null);
+        result.put("packageId", order != null ? order.getPackageId() : null);
         result.put("payTime", order != null ? order.getPayTime() : null);
 
         return success(result);
@@ -137,6 +140,9 @@ public class AlipayController extends BaseController {
         result.put("orderNo", orderNo);
         result.put("payStatus", order.getPayStatus());
         result.put("amount", order.getAmount());
+        result.put("payAmount", order.getAmount());
+        result.put("provideAmount", order.getProvideAmount());
+        result.put("packageId", order.getPackageId());
         result.put("payTime", order.getPayTime());
         result.put("userId", order.getUserId());
 

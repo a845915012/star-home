@@ -44,6 +44,16 @@ public class FurnitureRechargeOrderDO implements Serializable {
     private BigDecimal amount;
 
     /**
+     * 充值套餐ID
+     */
+    private Long packageId;
+
+    /**
+     * 到账金额(元)
+     */
+    private BigDecimal provideAmount;
+
+    /**
      * 支付状态: 0-待支付, 1-支付成功, 2-支付失败, 3-已关闭
      */
     private Integer payStatus;
