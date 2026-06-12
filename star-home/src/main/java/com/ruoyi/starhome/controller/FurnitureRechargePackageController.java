@@ -37,6 +37,7 @@ public class FurnitureRechargePackageController extends BaseController {
     @Parameters({
             @Parameter(name = "costAmount", description = "花费金额", example = "100.00"),
             @Parameter(name = "provideAmount", description = "提供额度", example = "120.00"),
+            @Parameter(name = "isVip", description = "是否VIP套餐（0否 1是）", example = "1"),
             @Parameter(name = "status", description = "状态（1启用 0停用）", example = "1"),
             @Parameter(name = "pageNum", description = "页码", example = "1"),
             @Parameter(name = "pageSize", description = "每页条数", example = "10")
@@ -58,7 +59,7 @@ public class FurnitureRechargePackageController extends BaseController {
     @io.swagger.v3.oas.annotations.parameters.RequestBody(
             required = true,
             description = "充值套餐对象",
-            content = @Content(schema = @Schema(implementation = FurnitureRechargePackageDO.class), examples = @ExampleObject(value = "{\"costAmount\":100.00,\"provideAmount\":120.00,\"status\":\"1\"}"))
+            content = @Content(schema = @Schema(implementation = FurnitureRechargePackageDO.class), examples = @ExampleObject(value = "{\"costAmount\":100.00,\"provideAmount\":120.00,\"isVip\":1,\"status\":\"1\"}"))
     )
     @Log(title = "充值套餐", businessType = BusinessType.INSERT)
     @PostMapping
@@ -70,7 +71,7 @@ public class FurnitureRechargePackageController extends BaseController {
     @io.swagger.v3.oas.annotations.parameters.RequestBody(
             required = true,
             description = "充值套餐对象（需包含id）",
-            content = @Content(schema = @Schema(implementation = FurnitureRechargePackageDO.class), examples = @ExampleObject(value = "{\"id\":1,\"costAmount\":99.00,\"provideAmount\":120.00,\"status\":\"1\"}"))
+            content = @Content(schema = @Schema(implementation = FurnitureRechargePackageDO.class), examples = @ExampleObject(value = "{\"id\":1,\"costAmount\":99.00,\"provideAmount\":120.00,\"isVip\":1,\"status\":\"1\"}"))
     )
     @Log(title = "充值套餐", businessType = BusinessType.UPDATE)
     @PutMapping

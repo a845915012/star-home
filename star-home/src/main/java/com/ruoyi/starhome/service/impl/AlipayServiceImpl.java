@@ -12,6 +12,7 @@ import com.alipay.api.response.AlipayTradeWapPayResponse;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.ruoyi.common.core.domain.entity.SysUser;
 import com.ruoyi.common.exception.ServiceException;
 import com.ruoyi.framework.security.util.SecurityFrameworkUtils;
 import com.ruoyi.starhome.config.AlipayConfig;
@@ -25,6 +26,7 @@ import com.ruoyi.starhome.mapper.FurnitureRechargeOrderMapper;
 import com.ruoyi.starhome.service.IAlipayService;
 import com.ruoyi.starhome.service.IFurnitureRechargePackageService;
 import com.ruoyi.starhome.service.IFurnitureUserBalanceAccountService;
+import com.ruoyi.system.mapper.SysUserMapper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -43,6 +45,7 @@ import java.util.UUID;
  */
 @Service
 public class AlipayServiceImpl implements IAlipayService {
+    private static final int VIP_ENABLED = 1;
 
     private static final Logger log = LoggerFactory.getLogger(AlipayServiceImpl.class);
 
@@ -61,16 +64,19 @@ public class AlipayServiceImpl implements IAlipayService {
     @Autowired
     private IFurnitureRechargePackageService furnitureRechargePackageService;
 
+    @Autowired
+    private SysUserMapper sysUserMapper;
+
     private final ObjectMapper objectMapper = new ObjectMapper();
 
     @Override
     @Transactional(rollbackFor = Exception.class)
     public AlipayRechargeResponse createRechargeOrder(AlipayRechargeRequest request) {
         Long userId = SecurityFrameworkUtils.getLoginUserId();
-        FurnitureRechargePackageDO rechargePackage = validateRequestAndGetPackage(request);
+        RechargeInfo rechargeInfo = validateRequestAndBuildRechargeInfo(request);
 
         // 创建充值订单
-        FurnitureRechargeOrderDO order = createOrder(userId, rechargePackage, request);
+        FurnitureRechargeOrderDO order = createOrder(userId, rechargeInfo, request);
 
         // 构建支付宝请求
         AlipayTradePagePayRequest alipayRequest = new AlipayTradePagePayRequest();
@@ -105,10 +111,10 @@ public class AlipayServiceImpl implements IAlipayService {
     @Transactional(rollbackFor = Exception.class)
     public AlipayRechargeResponse createH5RechargeOrder(AlipayRechargeRequest request) {
         Long userId = SecurityFrameworkUtils.getLoginUserId();
-        FurnitureRechargePackageDO rechargePackage = validateRequestAndGetPackage(request);
+        RechargeInfo rechargeInfo = validateRequestAndBuildRechargeInfo(request);
 
         // 创建充值订单
-        FurnitureRechargeOrderDO order = createOrder(userId, rechargePackage, request);
+        FurnitureRechargeOrderDO order = createOrder(userId, rechargeInfo, request);
 
         // 构建支付宝H5请求
         AlipayTradeWapPayRequest alipayRequest = new AlipayTradeWapPayRequest();
@@ -189,6 +195,7 @@ public class AlipayServiceImpl implements IAlipayService {
 
                 // 调用充值接口增加用户余额
                 balanceAccountService.recharge(order.getUserId(), getProvideAmountOrPayAmount(order));
+                updateUserVipStatusIfNeeded(order);
 
                 log.info("充值订单支付成功, 订单号: {}, 用户ID: {}, 支付金额: {}, 到账星币: {}",
                         orderNo, order.getUserId(), order.getAmount(), getProvideAmountOrPayAmount(order));
@@ -255,6 +262,7 @@ public class AlipayServiceImpl implements IAlipayService {
 
                     // 调用充值接口
                     balanceAccountService.recharge(order.getUserId(), getProvideAmountOrPayAmount(order));
+                    updateUserVipStatusIfNeeded(order);
 
                     return order;
                 } else if ("TRADE_CLOSED".equals(tradeStatus)) {
@@ -273,36 +281,53 @@ public class AlipayServiceImpl implements IAlipayService {
     /**
      * 参数校验
      */
-    private FurnitureRechargePackageDO validateRequestAndGetPackage(AlipayRechargeRequest request) {
-        if (request.getPackageId() == null) {
-            throw new ServiceException("充值套餐ID不能为空");
+    private RechargeInfo validateRequestAndBuildRechargeInfo(AlipayRechargeRequest request) {
+        boolean hasPackageId = request.getPackageId() != null;
+        boolean hasAmount = request.getAmount() != null;
+
+        if (hasPackageId && hasAmount) {
+            throw new ServiceException("充值套餐ID和自定义金额不能同时传");
         }
-        FurnitureRechargePackageDO rechargePackage = furnitureRechargePackageService.selectEnabledById(request.getPackageId());
-        if (rechargePackage == null) {
-            throw new ServiceException("充值套餐不存在或未启用");
+        if (!hasPackageId && !hasAmount) {
+            throw new ServiceException("充值套餐ID和自定义金额不能同时为空");
         }
-        if (rechargePackage.getCostAmount() == null || rechargePackage.getCostAmount().compareTo(BigDecimal.ZERO) <= 0) {
-            throw new ServiceException("充值套餐支付金额异常");
+
+        if (hasPackageId) {
+            FurnitureRechargePackageDO rechargePackage = furnitureRechargePackageService.selectEnabledById(request.getPackageId());
+            if (rechargePackage == null) {
+                throw new ServiceException("充值套餐不存在或未启用");
+            }
+            if (rechargePackage.getCostAmount() == null || rechargePackage.getCostAmount().compareTo(BigDecimal.ZERO) <= 0) {
+                throw new ServiceException("充值套餐支付金额异常");
+            }
+            if (rechargePackage.getCostAmount().compareTo(new BigDecimal("50000")) > 0) {
+                throw new ServiceException("单笔充值金额不能超过50000元");
+            }
+            if (rechargePackage.getProvideAmount() == null || rechargePackage.getProvideAmount().compareTo(BigDecimal.ZERO) <= 0) {
+                throw new ServiceException("充值套餐到账金额异常");
+            }
+            return new RechargeInfo(rechargePackage.getId(), rechargePackage.getCostAmount(), rechargePackage.getProvideAmount());
         }
-        if (rechargePackage.getCostAmount().compareTo(new BigDecimal("50000")) > 0) {
+
+        if (request.getAmount().compareTo(BigDecimal.ZERO) <= 0) {
+            throw new ServiceException("充值金额必须大于0");
+        }
+        if (request.getAmount().compareTo(new BigDecimal("50000")) > 0) {
             throw new ServiceException("单笔充值金额不能超过50000元");
         }
-        if (rechargePackage.getProvideAmount() == null || rechargePackage.getProvideAmount().compareTo(BigDecimal.ZERO) <= 0) {
-            throw new ServiceException("充值套餐到账金额异常");
-        }
-        return rechargePackage;
+        return new RechargeInfo(null, request.getAmount(), request.getAmount());
     }
 
     /**
      * 创建充值订单
      */
-    private FurnitureRechargeOrderDO createOrder(Long userId, FurnitureRechargePackageDO rechargePackage, AlipayRechargeRequest request) {
+    private FurnitureRechargeOrderDO createOrder(Long userId, RechargeInfo rechargeInfo, AlipayRechargeRequest request) {
         FurnitureRechargeOrderDO order = new FurnitureRechargeOrderDO();
         order.setOrderNo(generateOrderNo());
         order.setUserId(userId);
-        order.setPackageId(rechargePackage.getId());
-        order.setAmount(rechargePackage.getCostAmount());
-        order.setProvideAmount(rechargePackage.getProvideAmount());
+        order.setPackageId(rechargeInfo.packageId);
+        order.setAmount(rechargeInfo.payAmount);
+        order.setProvideAmount(rechargeInfo.provideAmount);
         order.setPayStatus(PayStatusConstants.PENDING);
         order.setPayWay(PayWayConstants.ALIPAY);
         order.setSubject(request.getSubject() != null ? request.getSubject() : "账户充值");
@@ -331,6 +356,27 @@ public class AlipayServiceImpl implements IAlipayService {
             return order.getProvideAmount();
         }
         return order.getAmount();
+    }
+
+    private void updateUserVipStatusIfNeeded(FurnitureRechargeOrderDO order) {
+        if (order.getPackageId() == null) {
+            return;
+        }
+        FurnitureRechargePackageDO rechargePackage = furnitureRechargePackageService.selectFurnitureRechargePackageById(order.getPackageId());
+        if (rechargePackage == null || !isVipPackage(rechargePackage)) {
+            return;
+        }
+        SysUser user = new SysUser();
+        user.setUserId(order.getUserId());
+        user.setIsVip(VIP_ENABLED);
+        sysUserMapper.updateUser(user);
+    }
+
+    private boolean isVipPackage(FurnitureRechargePackageDO rechargePackage) {
+        return Integer.valueOf(VIP_ENABLED).equals(rechargePackage.getIsVip());
+    }
+
+    private record RechargeInfo(Long packageId, BigDecimal payAmount, BigDecimal provideAmount) {
     }
 
     /**

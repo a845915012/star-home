@@ -25,6 +25,8 @@ public class FurnitureRechargePackageDO implements Serializable {
 
     private BigDecimal provideAmount;
 
+    private Integer isVip;
+
     private String status;
 
     @TableField(fill = FieldFill.INSERT)

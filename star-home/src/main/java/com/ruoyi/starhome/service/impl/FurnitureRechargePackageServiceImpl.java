@@ -28,6 +28,7 @@ public class FurnitureRechargePackageServiceImpl implements IFurnitureRechargePa
                 .eq(furnitureRechargePackage.getId() != null, FurnitureRechargePackageDO::getId, furnitureRechargePackage.getId())
                 .eq(furnitureRechargePackage.getCostAmount() != null, FurnitureRechargePackageDO::getCostAmount, furnitureRechargePackage.getCostAmount())
                 .eq(furnitureRechargePackage.getProvideAmount() != null, FurnitureRechargePackageDO::getProvideAmount, furnitureRechargePackage.getProvideAmount())
+                .eq(furnitureRechargePackage.getIsVip() != null, FurnitureRechargePackageDO::getIsVip, furnitureRechargePackage.getIsVip())
                 .eq(furnitureRechargePackage.getStatus() != null && !furnitureRechargePackage.getStatus().isEmpty(), FurnitureRechargePackageDO::getStatus, furnitureRechargePackage.getStatus())
                 .orderByDesc(FurnitureRechargePackageDO::getId));
     }

@@ -46,10 +46,13 @@ public class AlipayController extends BaseController {
     @Operation(summary = "PC端充值", description = "创建充值订单并返回支付宝支付表单HTML，前端直接渲染即可跳转支付")
     @io.swagger.v3.oas.annotations.parameters.RequestBody(
             required = true,
-            description = "充值请求参数",
+            description = "充值请求参数，packageId 和 amount 二选一",
             content = @Content(
                     schema = @Schema(implementation = AlipayRechargeRequest.class),
-                    examples = @ExampleObject(value = "{\"packageId\":1,\"subject\":\"账户充值\"}")
+                    examples = {
+                            @ExampleObject(name = "套餐充值", value = "{\"packageId\":1,\"subject\":\"账户充值\"}"),
+                            @ExampleObject(name = "自定义充值", value = "{\"amount\":100.00,\"subject\":\"账户充值\"}")
+                    }
             )
     )
     @PostMapping("/recharge/pc")
@@ -64,10 +67,13 @@ public class AlipayController extends BaseController {
     @Operation(summary = "H5端充值", description = "创建充值订单并返回支付宝H5支付表单HTML，适用于手机网站")
     @io.swagger.v3.oas.annotations.parameters.RequestBody(
             required = true,
-            description = "充值请求参数",
+            description = "充值请求参数，packageId 和 amount 二选一",
             content = @Content(
                     schema = @Schema(implementation = AlipayRechargeRequest.class),
-                    examples = @ExampleObject(value = "{\"packageId\":1,\"subject\":\"账户充值\"}")
+                    examples = {
+                            @ExampleObject(name = "套餐充值", value = "{\"packageId\":1,\"subject\":\"账户充值\"}"),
+                            @ExampleObject(name = "自定义充值", value = "{\"amount\":100.00,\"subject\":\"账户充值\"}")
+                    }
             )
     )
     @PostMapping("/recharge/h5")
