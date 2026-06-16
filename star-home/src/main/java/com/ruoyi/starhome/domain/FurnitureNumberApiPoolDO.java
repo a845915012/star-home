@@ -19,5 +19,6 @@ public class FurnitureNumberApiPoolDO implements Serializable {
     private String number;
     private String apiKey;
     private String apiUrl;
+    private String mode;
     private String remark;
 }

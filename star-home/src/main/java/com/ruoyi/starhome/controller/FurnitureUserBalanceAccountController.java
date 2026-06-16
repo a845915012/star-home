@@ -90,8 +90,7 @@ public class FurnitureUserBalanceAccountController extends BaseController {
         return success(resp);
     }
 
-    @Operation(summary = "查询用户余额")
-
+    @Operation(summary = "查询用户余额和会员情况")
     @GetMapping("/getUserBalance")
     public AjaxResult getUserBalance() {
         return success(furnitureUserBalanceAccountService.getUserBalance(SecurityFrameworkUtils.getLoginUserId()));

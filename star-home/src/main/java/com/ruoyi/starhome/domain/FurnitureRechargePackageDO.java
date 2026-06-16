@@ -21,13 +21,19 @@ public class FurnitureRechargePackageDO implements Serializable {
     @TableId(value = "id", type = IdType.AUTO)
     private Long id;
 
+    private String packageName;
+
     private BigDecimal costAmount;
 
     private BigDecimal provideAmount;
 
     private Integer isVip;
 
+    private Integer vipDay;
+
     private String status;
+
+    private String remark;
 
     @TableField(fill = FieldFill.INSERT)
     private Date createTime;

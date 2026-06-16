@@ -35,6 +35,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.text.SimpleDateFormat;
+import java.time.LocalDateTime;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.Map;
@@ -366,9 +367,35 @@ public class AlipayServiceImpl implements IAlipayService {
         if (rechargePackage == null || !isVipPackage(rechargePackage)) {
             return;
         }
+        Integer vipDay = rechargePackage.getVipDay();
+        SysUser dbUser = sysUserMapper.selectUserById(order.getUserId());
+        LocalDateTime now = LocalDateTime.now();
+
+        LocalDateTime vipBeginTime = dbUser != null ? dbUser.getVipBeginTime() : null;
+        LocalDateTime vipExpireTime = dbUser != null ? dbUser.getVipExpireTime() : null;
+        Integer isVip = dbUser != null ? dbUser.getIsVip() : null;
+
+        if (isVip == null || isVip == 0) {
+            vipBeginTime = now;
+        } else if (vipBeginTime == null) {
+            vipBeginTime = now;
+        }
+
+        LocalDateTime baseExpireTime = vipExpireTime != null ? vipExpireTime : now;
+        if (baseExpireTime.isBefore(now)) {
+            baseExpireTime = now;
+        }
+        if (vipDay != null && vipDay > 0) {
+            vipExpireTime = baseExpireTime.plusDays(vipDay);
+        } else {
+            vipExpireTime = baseExpireTime;
+        }
+
         SysUser user = new SysUser();
         user.setUserId(order.getUserId());
         user.setIsVip(VIP_ENABLED);
+        user.setVipBeginTime(vipBeginTime);
+        user.setVipExpireTime(vipExpireTime);
         sysUserMapper.updateUser(user);
     }
 

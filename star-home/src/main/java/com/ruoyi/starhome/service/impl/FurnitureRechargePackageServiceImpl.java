@@ -26,11 +26,13 @@ public class FurnitureRechargePackageServiceImpl implements IFurnitureRechargePa
     public List<FurnitureRechargePackageDO> selectFurnitureRechargePackageList(FurnitureRechargePackageDO furnitureRechargePackage) {
         return furnitureRechargePackageMapper.selectList(new LambdaQueryWrapper<FurnitureRechargePackageDO>()
                 .eq(furnitureRechargePackage.getId() != null, FurnitureRechargePackageDO::getId, furnitureRechargePackage.getId())
+                .like(furnitureRechargePackage.getPackageName() != null && !furnitureRechargePackage.getPackageName().isEmpty(), FurnitureRechargePackageDO::getPackageName, furnitureRechargePackage.getPackageName())
                 .eq(furnitureRechargePackage.getCostAmount() != null, FurnitureRechargePackageDO::getCostAmount, furnitureRechargePackage.getCostAmount())
                 .eq(furnitureRechargePackage.getProvideAmount() != null, FurnitureRechargePackageDO::getProvideAmount, furnitureRechargePackage.getProvideAmount())
                 .eq(furnitureRechargePackage.getIsVip() != null, FurnitureRechargePackageDO::getIsVip, furnitureRechargePackage.getIsVip())
+                .eq(furnitureRechargePackage.getVipDay() != null, FurnitureRechargePackageDO::getVipDay, furnitureRechargePackage.getVipDay())
                 .eq(furnitureRechargePackage.getStatus() != null && !furnitureRechargePackage.getStatus().isEmpty(), FurnitureRechargePackageDO::getStatus, furnitureRechargePackage.getStatus())
-                .orderByDesc(FurnitureRechargePackageDO::getId));
+                .like(furnitureRechargePackage.getRemark() != null && !furnitureRechargePackage.getRemark().isEmpty(), FurnitureRechargePackageDO::getRemark, furnitureRechargePackage.getRemark()));
     }
 
     @Override

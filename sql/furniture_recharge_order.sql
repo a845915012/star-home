@@ -23,3 +23,5 @@ CREATE TABLE IF NOT EXISTS `furniture_recharge_order` (
     KEY `idx_pay_status` (`pay_status`),
     KEY `idx_create_time` (`create_time`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='充值订单表';
+
+ALTER TABLE `furniture_recharge_package` ADD COLUMN `vip_day` int DEFAULT NULL COMMENT '会员天数';

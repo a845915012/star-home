@@ -1,5 +1,6 @@
 package com.ruoyi.common.core.domain.entity;
 
+import java.time.LocalDateTime;
 import java.util.Date;
 import java.util.List;
 import jakarta.validation.constraints.*;
@@ -63,6 +64,10 @@ public class SysUser extends BaseEntity
 
     /** 是否会员（0否 1是） */
     private Integer isVip;
+
+    private LocalDateTime vipBeginTime;
+
+    private LocalDateTime vipExpireTime;
 
     /** 删除标志（0代表存在 2代表删除） */
     private String delFlag;
@@ -231,6 +236,26 @@ public class SysUser extends BaseEntity
         this.isVip = isVip;
     }
 
+    public LocalDateTime getVipBeginTime()
+    {
+        return vipBeginTime;
+    }
+
+    public void setVipBeginTime(LocalDateTime vipBeginTime)
+    {
+        this.vipBeginTime = vipBeginTime;
+    }
+
+    public LocalDateTime getVipExpireTime()
+    {
+        return vipExpireTime;
+    }
+
+    public void setVipExpireTime(LocalDateTime vipExpireTime)
+    {
+        this.vipExpireTime = vipExpireTime;
+    }
+
     public String getDelFlag()
     {
         return delFlag;
@@ -335,6 +360,8 @@ public class SysUser extends BaseEntity
             .append("password", getPassword())
             .append("status", getStatus())
             .append("isVip", getIsVip())
+            .append("vipBeginTime", getVipBeginTime())
+            .append("vipExpireTime", getVipExpireTime())
             .append("delFlag", getDelFlag())
             .append("loginIp", getLoginIp())
             .append("loginDate", getLoginDate())

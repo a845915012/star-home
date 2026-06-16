@@ -5,6 +5,7 @@ import com.ruoyi.starhome.domain.dto.FurnitureUserBalanceRecordsPageResp;
 import com.ruoyi.starhome.domain.vo.FurnitureUserBalanceAccountPageVO;
 import java.math.BigDecimal;
 import java.util.List;
+import java.util.Map;
 
 public interface IFurnitureUserBalanceAccountService {
 
@@ -17,7 +18,7 @@ public interface IFurnitureUserBalanceAccountService {
     void consume(Long userId, BigDecimal amount);
 
     FurnitureUserBalanceRecordsPageResp getUserBalanceRecords(Long userId, Integer type, Integer pageNum, Integer pageSize);
-    BigDecimal getUserBalance(Long userId);
+    Map<String, Object> getUserBalance(Long userId);
 
 }
 

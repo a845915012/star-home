@@ -38,6 +38,7 @@ public class FurnitureApiServiceImpl implements IFurnitureApiService {
             question.append(request.getViewPrompt());
         }
         taskRequest.setQuestion(question.toString());
+        taskRequest.setUserPrompt(request.getUserPrompt());
         taskRequest.setModule("视觉设计");
         taskRequest.setConsumeCode(request.getConsumeCode());
         TaskApiInvokeResponse response = taskApiInvokeService.invokeGeminiImageApi(taskRequest);
@@ -59,6 +60,7 @@ public class FurnitureApiServiceImpl implements IFurnitureApiService {
         taskRequest.setQuestion(textPrompt);
         taskRequest.setModule("灵感文案");
         taskRequest.setConsumeCode(request.getConsumeCode());
+        taskRequest.setUserPrompt(request.getStylePrompt()+";"+request.getUserPrompt());
         return taskApiInvokeService.invokeTaskApi(taskRequest);
     }
 
@@ -71,7 +73,7 @@ public class FurnitureApiServiceImpl implements IFurnitureApiService {
         serviceRequest.setImageUrl(request.getImageUrl());
         // 后端业务字段统一在服务内赋值
         serviceRequest.setConsumeCode(request.getConsumeCode());
-//        serviceRequest.setPrompt(buildFirstSegmentPrompt(request.getProduct(), request.getMaterial(),request.getPrompt()));
+        serviceRequest.setPrompt(request.getPrompt());
 
         return taskApiInvokeService.imageGenerateVideo(serviceRequest);
     }

@@ -16,6 +16,7 @@ public class TaskApiInvokeRequest implements Serializable {
     private String apiNumber;
     private List<String> filePaths;
     private String question;
+    private String userPrompt;
     /**
      * 是否使用SSE流式输出（与 /stream 接口配合）。
      * true: 走 streaming + 通过SseEmitter推送

@@ -7,6 +7,7 @@ import com.ruoyi.framework.security.util.SecurityFrameworkUtils;
 import com.ruoyi.starhome.domain.dto.CopyGenerateRequest;
 import com.ruoyi.starhome.domain.dto.GenerateSceneRequest;
 import com.ruoyi.starhome.domain.dto.ImageGenerateVideoClientRequest;
+import com.ruoyi.starhome.enums.ApiNumberConstants;
 import com.ruoyi.starhome.service.IFurnitureApiService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -35,6 +36,7 @@ public class FurnitureApiController {
     @Log(title = "场景图片生成", businessType = BusinessType.UPDATE)
     @PostMapping(value = "/image/generate-scene", consumes = MediaType.APPLICATION_JSON_VALUE)
     public AjaxResult imageGenerateScene(@RequestBody GenerateSceneRequest request) throws IOException {
+        request.setApiNumber(ApiNumberConstants.IMAGE2IMAGE_YUNWU.getApiNumber());
         return success(furnitureApiService.imageGenerateScene(request));
     }
 
@@ -46,6 +48,7 @@ public class FurnitureApiController {
     @Log(title = "文案生成接口", businessType = BusinessType.UPDATE)
     @PostMapping(value = "/copy/generate", consumes = MediaType.APPLICATION_JSON_VALUE)
     public AjaxResult copyGenerate(@RequestBody CopyGenerateRequest request) {
+        request.setApiNumber(ApiNumberConstants.LINGGANWENAN_STREAM_YUNWU.getApiNumber());
         return success(furnitureApiService.copyGenerate(request));
     }
 

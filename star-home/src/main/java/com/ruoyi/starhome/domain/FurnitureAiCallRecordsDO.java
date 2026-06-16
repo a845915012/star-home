@@ -49,6 +49,9 @@ public class FurnitureAiCallRecordsDO implements Serializable {
     /** 提示词 */
     private String prompt;
 
+    /** 用户提示词 */
+    private String userPrompt;
+
     /** 输入文件url */
     private String inputFiles;
 

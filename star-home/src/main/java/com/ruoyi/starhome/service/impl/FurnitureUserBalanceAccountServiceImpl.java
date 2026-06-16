@@ -12,19 +12,25 @@ import com.ruoyi.starhome.domain.vo.FurnitureUserBalanceAccountPageVO;
 import com.ruoyi.starhome.mapper.FurnitureUserBalanceAccountMapper;
 import com.ruoyi.starhome.mapper.FurnitureUserBalanceRecordsMapper;
 import com.ruoyi.starhome.service.IFurnitureUserBalanceAccountService;
+import com.ruoyi.starhome.utils.DateUtil;
 import com.ruoyi.system.mapper.SysUserMapper;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
+import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.Date;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 @Service
 public class FurnitureUserBalanceAccountServiceImpl implements IFurnitureUserBalanceAccountService {
     private static final int TYPE_RECHARGE = 1;
     private static final int TYPE_CONSUME = 2;
+    private static final DateTimeFormatter DATE_TIME_FMT = DateTimeFormatter.ofPattern(DateUtil.FORMAT_YEAR_MONTH_DAY_HOUR_MINUTE_SECOND);
 
     @Autowired
     private FurnitureUserBalanceAccountMapper furnitureUserBalanceAccountMapper;
@@ -113,16 +119,27 @@ public class FurnitureUserBalanceAccountServiceImpl implements IFurnitureUserBal
     }
 
     @Override
-    public BigDecimal getUserBalance(Long userId) {
+    public Map<String, Object> getUserBalance(Long userId) {
         if (userId == null) {
             throw new ServiceException("userId不能为空");
         }
         FurnitureUserBalanceAccountDO furnitureUserBalanceRecordsDO = furnitureUserBalanceAccountMapper.selectOne(new LambdaQueryWrapper<FurnitureUserBalanceAccountDO>()
                 .eq(FurnitureUserBalanceAccountDO::getUserId, userId));
-        if(furnitureUserBalanceRecordsDO == null){
+        if (furnitureUserBalanceRecordsDO == null) {
             throw new ServiceException("用户账户不存在");
         }
-        return furnitureUserBalanceRecordsDO.getBalance();
+        Map<String, Object> resp = new HashMap<>();
+        resp.put("balance", furnitureUserBalanceRecordsDO.getBalance());
+
+        SysUser user = sysUserMapper.selectUserById(userId);
+        Integer isVip = user != null && user.getIsVip() != null ? user.getIsVip() : 0;
+        resp.put("isVip", isVip);
+
+        LocalDateTime vipBeginTime = user != null ? user.getVipBeginTime() : null;
+        LocalDateTime vipExpireTime = user != null ? user.getVipExpireTime() : null;
+        resp.put("vipBeginTime", vipBeginTime != null ? vipBeginTime.format(DATE_TIME_FMT) : null);
+        resp.put("vipExpireTime", vipExpireTime != null ? vipExpireTime.format(DATE_TIME_FMT) : null);
+        return resp;
     }
 
     private void validateOperate(Long userId, BigDecimal amount) {

@@ -11,7 +11,6 @@ import com.ruoyi.common.utils.StringUtils;
 import com.ruoyi.framework.security.util.SecurityFrameworkUtils;
 import com.ruoyi.starhome.domain.*;
 import com.ruoyi.starhome.domain.dto.*;
-import com.ruoyi.starhome.enums.AiModeConstants;
 import com.ruoyi.starhome.mapper.*;
 import com.ruoyi.starhome.service.IApiCallMonitorCacheService;
 import com.ruoyi.starhome.service.IFurnitureConsumeConfigService;
@@ -53,7 +52,10 @@ public class TaskApiInvokeServiceImpl implements ITaskApiInvokeService {
             .readTimeout(180, TimeUnit.SECONDS)
             .build();
 
-    private static final String IMAGE2VIDEO_API_NUMBER = "image2video_t8star_api";
+    private static final String IMAGE2VIDEO_API_NUMBER = "image2video_yunwu_api";
+    private static final String DEFAULT_TEXT_MODE = "gpt-4o-all";
+    private static final String DEFAULT_IMAGE_MODE = "gemini-3-pro-image-preview";
+    private static final String DEFAULT_VIDEO_MODE = "veo_3_1_fast_vip";
 
     private final Map<Long, SseEmitter> emitterMap = new ConcurrentHashMap<>();
 
@@ -103,9 +105,11 @@ public class TaskApiInvokeServiceImpl implements ITaskApiInvokeService {
         request.setConsumePrice(consumePrice);
         validateBalanceEnough(request.getUserId(), consumePrice);
 
-        AiApiCallResult callResult = callAiApiByApiNumber(request);
+        FurnitureNumberApiPoolDO apiPool = getApiPoolByNumber(request.getApiNumber());
+        String aiMode = resolveMode(apiPool, DEFAULT_TEXT_MODE);
+        AiApiCallResult callResult = callAiApiByApiPool(request, apiPool, aiMode);
 
-        recordUsageAsyncFromTaskApi(request, callResult);
+        recordUsageAsyncFromTaskApi(request, callResult, aiMode);
 
         // 业务完成后扣减余额
         furnitureUserBalanceAccountService.consume(request.getUserId(), consumePrice);
@@ -144,14 +148,17 @@ public class TaskApiInvokeServiceImpl implements ITaskApiInvokeService {
         request.setConsumePrice(consumePrice);
         validateBalanceEnough(request.getUserId(), consumePrice);
 
-        AiApiCallResult callResult = callGeminiImageApiByApiNumber(request);
+        FurnitureNumberApiPoolDO apiPool = getApiPoolByNumber(request.getApiNumber());
+        String aiMode = resolveMode(apiPool, DEFAULT_IMAGE_MODE);
+        AiApiCallResult callResult = callGeminiImageApiByApiPool(request, apiPool, aiMode);
 
         recordUsageAsyncFromGeminiImage(
                 request.getUserId(),
                 request.getModule(),
-                AiModeConstants.IMAGE_IMAGE_AI.getAiMode(),
+                aiMode,
                 consumePrice,
                 request.getQuestion(),
+                request.getUserPrompt(),
                 request.getFilePaths() == null ? null : String.join(",", request.getFilePaths()),
                 callResult.getApiResult(),
                 callResult.getUsageRaw()
@@ -260,8 +267,10 @@ public class TaskApiInvokeServiceImpl implements ITaskApiInvokeService {
                 furnitureVideoGenerationTaskMapper.updateById(updateHeader);
             }
 
-            createDeferredVideoUsageRecord(userId, "动态影像", AiModeConstants.IMAGE_VIDEO_AI.getAiMode(), generationTaskDO.getId(),
-                    request.getPrompt(), String.join(",", request.getImageUrl()),
+            FurnitureNumberApiPoolDO videoApiPool = getApiPoolByNumberNullable(IMAGE2VIDEO_API_NUMBER);
+            String aiMode = resolveMode(videoApiPool, DEFAULT_VIDEO_MODE);
+            createDeferredVideoUsageRecord(userId, "动态影像", aiMode, generationTaskDO.getId(),
+                    request.getPrompt(), request.getPrompt(), String.join(",", request.getImageUrl()),
                     request.getConsumePrice() == null ? BigDecimal.ZERO : request.getConsumePrice());
 
             FurnitureVideoTaskDO videoTask = new FurnitureVideoTaskDO();
@@ -395,16 +404,41 @@ public class TaskApiInvokeServiceImpl implements ITaskApiInvokeService {
         }
     }
 
-    private AiApiCallResult callGeminiImageApiByApiNumber(TaskApiInvokeRequest request) throws IOException {
+    private FurnitureNumberApiPoolDO getApiPoolByNumber(String apiNumber) {
+        if (apiNumber == null || apiNumber.isBlank()) {
+            throw new ServiceException("apiNumber不能为空");
+        }
         FurnitureNumberApiPoolDO apiPool = furnitureNumberApiPoolMapper.selectOne(
                 new LambdaQueryWrapper<FurnitureNumberApiPoolDO>()
-                        .eq(FurnitureNumberApiPoolDO::getNumber, String.valueOf(request.getApiNumber()))
+                        .eq(FurnitureNumberApiPoolDO::getNumber, apiNumber)
                         .last("limit 1")
         );
-
         if (apiPool == null) {
-            throw new ServiceException("未找到apiNumber对应的接口配置: " + request.getApiNumber());
+            throw new ServiceException("未找到apiNumber对应的接口配置: " + apiNumber);
         }
+        return apiPool;
+    }
+
+    private FurnitureNumberApiPoolDO getApiPoolByNumberNullable(String apiNumber) {
+        if (apiNumber == null || apiNumber.isBlank()) {
+            return null;
+        }
+        return furnitureNumberApiPoolMapper.selectOne(
+                new LambdaQueryWrapper<FurnitureNumberApiPoolDO>()
+                        .eq(FurnitureNumberApiPoolDO::getNumber, apiNumber)
+                        .last("limit 1")
+        );
+    }
+
+    private String resolveMode(FurnitureNumberApiPoolDO apiPool, String defaultMode) {
+        if (apiPool == null) {
+            return defaultMode;
+        }
+        String mode = apiPool.getMode();
+        return mode == null || mode.isBlank() ? defaultMode : mode;
+    }
+
+    private AiApiCallResult callGeminiImageApiByApiPool(TaskApiInvokeRequest request, FurnitureNumberApiPoolDO apiPool, String aiMode) throws IOException {
 
         List<String> filePaths = request.getFilePaths();
         if (filePaths == null || filePaths.isEmpty()) {
@@ -416,7 +450,7 @@ public class TaskApiInvokeServiceImpl implements ITaskApiInvokeService {
         try{
             String[] usageHolder = new String[1];
             String apiResult = generateByChatCompletions(
-                    AiModeConstants.IMAGE_IMAGE_AI.getAiMode(),
+                    aiMode,
                     request.getQuestion(),
                     filePaths,
                     apiPool.getApiUrl(),
@@ -594,17 +628,8 @@ public class TaskApiInvokeServiceImpl implements ITaskApiInvokeService {
     /**
      * 按 apiNumber 查询对应接口配置。
      */
-    private AiApiCallResult callAiApiByApiNumber(TaskApiInvokeRequest request) {
+    private AiApiCallResult callAiApiByApiPool(TaskApiInvokeRequest request, FurnitureNumberApiPoolDO apiPool, String aiMode) {
         String user = String.valueOf(request.getUserId());
-        FurnitureNumberApiPoolDO apiPool = furnitureNumberApiPoolMapper.selectOne(
-                new LambdaQueryWrapper<FurnitureNumberApiPoolDO>()
-                        .eq(FurnitureNumberApiPoolDO::getNumber, String.valueOf(request.getApiNumber()))
-                        .last("limit 1")
-        );
-
-        if (apiPool == null) {
-            throw new ServiceException("未找到apiNumber对应的接口配置: " + request.getApiNumber());
-        }
 
         AiApiCallResult result = new AiApiCallResult();
         result.setCallCost(BigDecimal.ZERO);
@@ -617,6 +642,7 @@ public class TaskApiInvokeServiceImpl implements ITaskApiInvokeService {
             boolean useSse = Boolean.TRUE.equals(request.getUseSse());
             String[] usageHolder = new String[1];
             result.setApiResult(runWorkflowWithMultipleFiles(
+                    aiMode,
                     request.getQuestion(),
                     filePaths,
                     user,
@@ -639,7 +665,7 @@ public class TaskApiInvokeServiceImpl implements ITaskApiInvokeService {
      * useSse = true  -> response_mode=streaming + 通过SseEmitter推送
      * useSse = false -> response_mode=blocking  + 直接返回HTTP结果
      */
-    public String runWorkflowWithMultipleFiles(String question, List<String> filePaths, String user, String url, String apiKey,
+    public String runWorkflowWithMultipleFiles(String model, String question, List<String> filePaths, String user, String url, String apiKey,
                                                boolean useSse, String[] usageHolder) throws IOException {
         Long userId = Long.valueOf(user);
         SseEmitter emitter = emitterMap.get(userId);
@@ -648,7 +674,7 @@ public class TaskApiInvokeServiceImpl implements ITaskApiInvokeService {
             throw new ServiceException("未找到userId对应的SSE连接: " + user + "，请先调用 /starhome/task/stream 建立连接");
         }
 
-        ObjectNode root = buildChatCompletionsMultiModalPayload(question, filePaths, useSse ? "streaming" : "blocking");
+        ObjectNode root = buildChatCompletionsMultiModalPayload(model, question, filePaths, useSse ? "streaming" : "blocking");
         Request request = buildChatCompletionsMultiModalRequest(url, apiKey, root);
 
         if (!useSse) {
@@ -657,9 +683,9 @@ public class TaskApiInvokeServiceImpl implements ITaskApiInvokeService {
         return executeStreaming(request, emitter, userId, usageHolder);
     }
 
-    private ObjectNode buildChatCompletionsMultiModalPayload(String question, List<String> filePaths, String responseMode) {
+    private ObjectNode buildChatCompletionsMultiModalPayload(String model, String question, List<String> filePaths, String responseMode) {
         ObjectNode root = mapper.createObjectNode();
-        root.put("model", AiModeConstants.TEXT_GENERATE_AI.getAiMode());
+        root.put("model", model);
         root.put("stream", "streaming".equals(responseMode));
 
         ArrayNode messages = mapper.createArrayNode();
@@ -1111,12 +1137,12 @@ public class TaskApiInvokeServiceImpl implements ITaskApiInvokeService {
      * 适用于图像生成视频场景，接口调用成功后先写入基础信息，等待异步任务完成后再补全结果字段。
      */
     public void createDeferredVideoUsageRecord(Long userId, String module, String aiMode, Long generationTaskId,
-                                               String prompt, String inputFiles, BigDecimal totalPrice) {
+                                               String prompt, String userPrompt, String inputFiles, BigDecimal totalPrice) {
         if (userId == null) {
             return;
         }
         recordUsageAsyncDetailed(userId, module, aiMode, BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO,
-                totalPrice == null ? BigDecimal.ZERO : totalPrice,  generationTaskId, prompt, inputFiles, null, null, "PROCESSING");
+                totalPrice == null ? BigDecimal.ZERO : totalPrice, generationTaskId, prompt, userPrompt, inputFiles, null, null, "PROCESSING");
     }
 
     /**
@@ -1146,7 +1172,7 @@ public class TaskApiInvokeServiceImpl implements ITaskApiInvokeService {
         });
     }
 
-    private void recordUsageAsyncFromTaskApi(TaskApiInvokeRequest request, AiApiCallResult callResult) {
+    private void recordUsageAsyncFromTaskApi(TaskApiInvokeRequest request, AiApiCallResult callResult, String aiMode) {
         if (request == null || callResult == null) {
             return;
         }
@@ -1171,13 +1197,14 @@ public class TaskApiInvokeServiceImpl implements ITaskApiInvokeService {
         recordUsageAsyncDetailed(
                 request.getUserId(),
                 request.getModule(),
-                AiModeConstants.TEXT_GENERATE_AI.getAiMode(),
+                aiMode,
                 defaultZero(tokenIn),
                 defaultZero(tokenOut),
                 defaultZero(totalToken),
                 totalPrice == null ? defaultZero(request.getConsumePrice()) : totalPrice,
                 null,
                 request.getQuestion(),
+                request.getUserPrompt(),
                 request.getFilePaths() == null ? null : String.join(",", request.getFilePaths()),
                 null,
                 callResult.getApiResult(),
@@ -1186,7 +1213,7 @@ public class TaskApiInvokeServiceImpl implements ITaskApiInvokeService {
     }
 
     private void recordUsageAsyncFromGeminiImage(Long userId, String module, String aiMode, BigDecimal fallbackCost,
-                                                  String prompt, String inputFiles, String outputFiles, String usageRaw) {
+                                                 String prompt, String userPrompt, String inputFiles, String outputFiles, String usageRaw) {
         JsonNode usageNode = null;
         if (usageRaw != null && !usageRaw.isBlank()) {
             try {
@@ -1214,6 +1241,7 @@ public class TaskApiInvokeServiceImpl implements ITaskApiInvokeService {
                 totalPrice == null ? defaultZero(fallbackCost) : totalPrice,
                 null,
                 prompt,
+                userPrompt,
                 inputFiles,
                 outputFiles,
                 null,
@@ -1222,7 +1250,8 @@ public class TaskApiInvokeServiceImpl implements ITaskApiInvokeService {
     }
 
     private void recordUsageAsyncDetailed(Long userId, String module, String aiMode,
-                                          BigDecimal tokenIn, BigDecimal tokenOut, BigDecimal totalToken, BigDecimal cost,Long generationTaskId, String prompt, String inputFiles, String outputFiles, String ouputContent, String status) {
+                                          BigDecimal tokenIn, BigDecimal tokenOut, BigDecimal totalToken, BigDecimal cost, Long generationTaskId,
+                                          String prompt, String userPrompt, String inputFiles, String outputFiles, String ouputContent, String status) {
         AsyncManager.me().execute(new TimerTask() {
             @Override
             public void run() {
@@ -1236,6 +1265,7 @@ public class TaskApiInvokeServiceImpl implements ITaskApiInvokeService {
                 record.setCost(cost);
                 record.setGenerationTaskId(generationTaskId);
                 record.setPrompt(prompt);
+                record.setUserPrompt(userPrompt);
                 record.setInputFiles(serverUrl + ":" +serverPort + inputFiles);
                 record.setOutputFiles(outputFiles);
                 record.setOuputContent(ouputContent);
