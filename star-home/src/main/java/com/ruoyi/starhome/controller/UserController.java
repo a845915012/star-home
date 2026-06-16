@@ -11,11 +11,7 @@ import com.ruoyi.starhome.sms.service.ISmsCodeService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RequestParam;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.*;
 
 import static com.ruoyi.common.core.domain.AjaxResult.error;
 import static com.ruoyi.common.core.domain.AjaxResult.success;
@@ -35,7 +31,7 @@ public class UserController {
     private ISmsCodeService smsCodeService;
 
     @Anonymous
-    @PostMapping("/sendSmsCode")
+    @GetMapping("/sendSmsCode")
     @Operation(summary = "发送注册短信验证码", description = "向指定手机号发送注册短信验证码")
     public AjaxResult sendSmsCode(@RequestParam("phone") String phone) {
         smsCodeService.sendRegisterCode(phone);

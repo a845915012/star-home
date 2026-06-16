@@ -5,6 +5,7 @@ import com.github.pagehelper.PageHelper;
 import com.github.pagehelper.PageInfo;
 import com.ruoyi.common.core.domain.entity.SysUser;
 import com.ruoyi.common.exception.ServiceException;
+import com.ruoyi.framework.web.service.SysRegisterService;
 import com.ruoyi.starhome.domain.FurnitureUserBalanceAccountDO;
 import com.ruoyi.starhome.domain.FurnitureUserBalanceRecordsDO;
 import com.ruoyi.starhome.domain.dto.FurnitureUserBalanceRecordsPageResp;
@@ -17,6 +18,8 @@ import com.ruoyi.system.mapper.SysUserMapper;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.event.TransactionPhase;
+import org.springframework.transaction.event.TransactionalEventListener;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
@@ -30,6 +33,7 @@ import java.util.Map;
 public class FurnitureUserBalanceAccountServiceImpl implements IFurnitureUserBalanceAccountService {
     private static final int TYPE_RECHARGE = 1;
     private static final int TYPE_CONSUME = 2;
+    private static final BigDecimal NEW_USER_INIT_BALANCE = new BigDecimal("5");
     private static final DateTimeFormatter DATE_TIME_FMT = DateTimeFormatter.ofPattern(DateUtil.FORMAT_YEAR_MONTH_DAY_HOUR_MINUTE_SECOND);
 
     @Autowired
@@ -40,6 +44,14 @@ public class FurnitureUserBalanceAccountServiceImpl implements IFurnitureUserBal
 
     @Autowired
     private SysUserMapper sysUserMapper;
+
+    @TransactionalEventListener(phase = TransactionPhase.BEFORE_COMMIT)
+    public void onUserRegistered(SysRegisterService.UserRegisteredEvent event) {
+        if (event == null || event.getUserId() == null) {
+            throw new ServiceException("用户注册事件缺少userId");
+        }
+        initBalanceOnRegister(event.getUserId());
+    }
 
     @Override
     public List<FurnitureUserBalanceAccountPageVO> selectFurnitureUserBalanceAccountList(String username) {
@@ -149,6 +161,21 @@ public class FurnitureUserBalanceAccountServiceImpl implements IFurnitureUserBal
         if (amount == null || amount.compareTo(BigDecimal.ZERO) <= 0) {
             throw new ServiceException("amount必须大于0");
         }
+    }
+
+    private void initBalanceOnRegister(Long userId) {
+        FurnitureUserBalanceAccountDO existing = furnitureUserBalanceAccountMapper.selectFurnitureUserBalanceAccountByUserId(userId);
+        if (existing != null) {
+            return;
+        }
+        FurnitureUserBalanceAccountDO account = new FurnitureUserBalanceAccountDO();
+        account.setUserId(userId);
+        account.setBalance(NEW_USER_INIT_BALANCE);
+        account.setUseBalance(BigDecimal.ZERO);
+        account.setCreateTime(new Date());
+        account.setUpdateTime(new Date());
+        furnitureUserBalanceAccountMapper.insert(account);
+        insertRecord(userId, NEW_USER_INIT_BALANCE, TYPE_RECHARGE, "新用户注册");
     }
 
     private FurnitureUserBalanceAccountDO ensureAccount(Long userId) {

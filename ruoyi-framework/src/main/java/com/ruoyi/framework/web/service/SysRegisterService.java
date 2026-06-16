@@ -18,6 +18,8 @@ import com.ruoyi.framework.manager.AsyncManager;
 import com.ruoyi.framework.manager.factory.AsyncFactory;
 import com.ruoyi.system.service.ISysConfigService;
 import com.ruoyi.system.service.ISysUserService;
+import org.springframework.context.ApplicationEventPublisher;
+import org.springframework.transaction.annotation.Transactional;
 
 /**
  * 注册校验方法
@@ -36,9 +38,42 @@ public class SysRegisterService
     @Autowired
     private RedisCache redisCache;
 
+    @Autowired
+    private ApplicationEventPublisher eventPublisher;
+
+    public static class UserRegisteredEvent
+    {
+        private final Long userId;
+        private final String userName;
+        private final String phone;
+
+        public UserRegisteredEvent(Long userId, String userName, String phone)
+        {
+            this.userId = userId;
+            this.userName = userName;
+            this.phone = phone;
+        }
+
+        public Long getUserId()
+        {
+            return userId;
+        }
+
+        public String getUserName()
+        {
+            return userName;
+        }
+
+        public String getPhone()
+        {
+            return phone;
+        }
+    }
+
     /**
      * 注册
      */
+    @Transactional(rollbackFor = Exception.class)
     public String register(RegisterBody registerBody)
     {
         String msg = "", username = registerBody.getUsername(), password = registerBody.getPassword();
@@ -82,27 +117,35 @@ public class SysRegisterService
         {
             msg = "密码长度必须在5到20个字符之间";
         }
-        else if (!userService.checkUserNameUnique(sysUser))
-        {
-            msg = "保存用户'" + username + "'失败，注册账号已存在";
-        }
         else
         {
-            sysUser.setNickName(username);
             sysUser.setPhonenumber(registerBody.getPhone());
-            sysUser.setEmail(registerBody.getEmail());
-            // 启用
-            sysUser.setStatus("0");
-            sysUser.setPwdUpdateDate(DateUtils.getNowDate());
-            sysUser.setPassword(SecurityUtils.encryptPassword(password));
-            boolean regFlag = userService.registerUser(sysUser);
-            if (!regFlag)
+            if (!userService.checkPhoneUnique(sysUser))
             {
-                msg = "注册失败,请联系系统管理人员";
+                msg = "手机号已被注册";
+            }
+            else if (!userService.checkUserNameUnique(sysUser))
+            {
+                msg = "保存用户'" + username + "'失败，注册账号已存在";
             }
             else
             {
-                AsyncManager.me().execute(AsyncFactory.recordLogininfor(username, Constants.REGISTER, MessageUtils.message("user.register.success")));
+                sysUser.setNickName(username);
+                sysUser.setEmail(registerBody.getEmail());
+                // 启用
+                sysUser.setStatus("0");
+                sysUser.setPwdUpdateDate(DateUtils.getNowDate());
+                sysUser.setPassword(SecurityUtils.encryptPassword(password));
+                boolean regFlag = userService.registerUser(sysUser);
+                if (!regFlag)
+                {
+                    msg = "注册失败,请联系系统管理人员";
+                }
+                else
+                {
+                    eventPublisher.publishEvent(new UserRegisteredEvent(sysUser.getUserId(), sysUser.getUserName(), sysUser.getPhonenumber()));
+                    AsyncManager.me().execute(AsyncFactory.recordLogininfor(username, Constants.REGISTER, MessageUtils.message("user.register.success")));
+                }
             }
         }
         return msg;
