@@ -64,31 +64,14 @@ public class FurnitureApiServiceImpl implements IFurnitureApiService {
 
     @Override
     public TaskApiInvokeResponse imageGenerateVideo(ImageGenerateVideoClientRequest request) throws IOException {
-//        if (Boolean.TRUE.equals(request.getGenerateDescription())) {
-//            TaskApiInvokeRequest taskRequest = new TaskApiInvokeRequest();
-//            taskRequest.setUserId(SecurityFrameworkUtils.getLoginUserId());
-//            taskRequest.setApiNumber("image2videotext");
-//            taskRequest.setUseSse(false);
-//            taskRequest.setQuestion("根据图片主体生成描述该主体的视频");
-//            taskRequest.setModule("图生视频");
-//            taskRequest.setConsumeCode(request.getConsumeCode());
-//            taskRequest.setFilePaths(request.getImageUrls());
-//
-//            TaskApiInvokeResponse descriptionResponse = taskApiInvokeService.invokeTaskApi(taskRequest);
-//            if (descriptionResponse != null && StringUtils.isNotBlank(descriptionResponse.getApiResult())) {
-//                request.setPrompt(descriptionResponse.getApiResult());
-//            }
-//        }
         ImageGenerateVideoRequest serviceRequest = new ImageGenerateVideoRequest();
         serviceRequest.setUserId(SecurityFrameworkUtils.getLoginUserId());
-        serviceRequest.setApiNumber(request.getApiNumber());
         serviceRequest.setProduct(request.getProduct());
         serviceRequest.setMaterial(request.getMaterial());
-        serviceRequest.setImageUrls(request.getImageUrls());
-        serviceRequest.setGenerateDescription(request.getGenerateDescription());
+        serviceRequest.setImageUrl(request.getImageUrl());
         // 后端业务字段统一在服务内赋值
         serviceRequest.setConsumeCode(request.getConsumeCode());
-        serviceRequest.setPrompt(buildFirstSegmentPrompt(request.getProduct(), request.getMaterial(),request.getPrompt()));
+//        serviceRequest.setPrompt(buildFirstSegmentPrompt(request.getProduct(), request.getMaterial(),request.getPrompt()));
 
         return taskApiInvokeService.imageGenerateVideo(serviceRequest);
     }

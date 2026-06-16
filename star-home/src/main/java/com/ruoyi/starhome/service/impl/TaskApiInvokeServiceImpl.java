@@ -7,6 +7,7 @@ import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.ruoyi.common.config.RuoYiConfig;
 import com.ruoyi.common.exception.ServiceException;
+import com.ruoyi.common.utils.StringUtils;
 import com.ruoyi.framework.security.util.SecurityFrameworkUtils;
 import com.ruoyi.starhome.domain.*;
 import com.ruoyi.starhome.domain.dto.*;
@@ -55,6 +56,12 @@ public class TaskApiInvokeServiceImpl implements ITaskApiInvokeService {
     private static final String IMAGE2VIDEO_API_NUMBER = "image2video_t8star_api";
 
     private final Map<Long, SseEmitter> emitterMap = new ConcurrentHashMap<>();
+
+    @Value("${starhome.vimax-agent.base-url}")
+    private String vimaxAgentBaseUrl;
+
+    @Value("${starhome.vimax-agent.api-key:}")
+    private String vimaxAgentApiKey;
 
     @Autowired
     private FurnitureNumberApiPoolMapper furnitureNumberApiPoolMapper;
@@ -178,7 +185,7 @@ public class TaskApiInvokeServiceImpl implements ITaskApiInvokeService {
     @Transactional
     public TaskApiInvokeResponse imageGenerateVideo(ImageGenerateVideoRequest request) throws IOException {
         log.info("imageGenerateVideo begin");
-        if (request == null || request.getImageUrls() == null || request.getImageUrls().isEmpty()) {
+        if (request == null || StringUtils.isBlank(request.getImageUrl())) {
             throw new ServiceException("图片URL列表不能为空");
         }
 
@@ -196,60 +203,32 @@ public class TaskApiInvokeServiceImpl implements ITaskApiInvokeService {
         BigDecimal consumePrice = resolveConsumePrice(request.getConsumeCode());
         request.setConsumePrice(consumePrice);
         validateBalanceEnough(userId, consumePrice);
-
-        String apiNumber = request.getApiNumber();
-        if (apiNumber == null || apiNumber.isBlank()) {
-            apiNumber = IMAGE2VIDEO_API_NUMBER;
+        if (vimaxAgentBaseUrl == null || vimaxAgentBaseUrl.isBlank()) {
+            throw new ServiceException("vimax-agent base-url 未配置（starhome.vimax-agent.base-url）");
         }
-        if (!IMAGE2VIDEO_API_NUMBER.equals(apiNumber)) {
-            throw new ServiceException("apiNumber不正确，仅支持: " + IMAGE2VIDEO_API_NUMBER);
-        }
-
-        FurnitureNumberApiPoolDO apiPool = furnitureNumberApiPoolMapper.selectOne(
-                new LambdaQueryWrapper<FurnitureNumberApiPoolDO>()
-                        .eq(FurnitureNumberApiPoolDO::getNumber, apiNumber)
-                        .last("limit 1")
-        );
-        if (apiPool == null || apiPool.getApiUrl() == null || apiPool.getApiUrl().isBlank()
-                || apiPool.getApiKey() == null || apiPool.getApiKey().isBlank()) {
-            throw new ServiceException("未找到图像生成视频接口配置");
-        }
-
-        List<String> publicImageUrls = new ArrayList<>();
-        for (String imageUrl : request.getImageUrls()) {
-            if (imageUrl == null || imageUrl.isBlank()) {
-                continue;
-            }
-            String publicFileUrl = toPublicFileUrl(imageUrl);
-            publicImageUrls.add(publicFileUrl);
-            log.info("toPublicFileUrl before:{},after:{}",imageUrl,publicFileUrl);
-        }
-        if (publicImageUrls.isEmpty()) {
-            throw new ServiceException("图片URL列表不能为空");
+        if (vimaxAgentApiKey == null || vimaxAgentApiKey.isBlank()) {
+            throw new ServiceException("vimax-agent api-key 未配置（starhome.vimax-agent.api-key）");
         }
 
         try {
-            log.info("callImageToVideoApi begin");
-            String rawResponse = callImageToVideoApi(apiPool.getApiUrl(), apiPool.getApiKey(), request.getPrompt(), publicImageUrls);
-            log.info("callImageToVideoApi end");
+            log.info("callVimaxAgentCreateJob begin");
+            String rawResponse = callVimaxAgentCreateJob(request.getImageUrl(), request.getProduct(), request.getMaterial(), request.getPrompt());
+            log.info("callVimaxAgentCreateJob end");
             JsonNode resultNode = mapper.readTree(rawResponse);
-            String taskId = getText(resultNode, "task_id");
+            String taskId = getText(resultNode, "job_id");
             if (taskId == null || taskId.isBlank()) {
-                taskId = getText(resultNode, "id");
+                throw new ServiceException("vimax-agent 响应缺少 job_id");
             }
-            createDeferredVideoUsageRecord(userId, "动态影像", AiModeConstants.IMAGE_VIDEO_AI.getAiMode(), generationTaskId,
-                    request.getPrompt(), String.join(",", publicImageUrls),
-                    request.getConsumePrice() == null ? BigDecimal.ZERO : request.getConsumePrice());
             FurnitureVideoGenerationTaskDO generationTaskDO;
             if (generationTaskId == null) {
                 generationTaskDO = new FurnitureVideoGenerationTaskDO();
                 generationTaskDO.setUserId(userId);
                 generationTaskDO.setProduct(request.getProduct());
                 generationTaskDO.setMaterial(request.getMaterial());
-                generationTaskDO.setImageUrl(publicImageUrls.toString());
+                generationTaskDO.setImageUrl(request.getImageUrl());
                 generationTaskDO.setConsumeCode(request.getConsumeCode());
                 generationTaskDO.setConsumePrice(consumePrice);
-                generationTaskDO.setExpectedTaskCount(2);
+                generationTaskDO.setExpectedTaskCount(1);
                 generationTaskDO.setCurrentTaskCount(0);
                 generationTaskDO.setStatus("process");
                 generationTaskDO.setCreateTime(LocalDateTime.now());
@@ -281,19 +260,25 @@ public class TaskApiInvokeServiceImpl implements ITaskApiInvokeService {
                 furnitureVideoGenerationTaskMapper.updateById(updateHeader);
             }
 
+            createDeferredVideoUsageRecord(userId, "动态影像", AiModeConstants.IMAGE_VIDEO_AI.getAiMode(), generationTaskDO.getId(),
+                    request.getPrompt(), String.join(",", request.getImageUrl()),
+                    request.getConsumePrice() == null ? BigDecimal.ZERO : request.getConsumePrice());
+
             FurnitureVideoTaskDO videoTask = new FurnitureVideoTaskDO();
             videoTask.setGenerationTaskId(generationTaskDO.getId());
             videoTask.setUserId(userId);
             videoTask.setTaskId(taskId);
-            videoTask.setModel(getText(resultNode, "model"));
-            videoTask.setProgress(getText(resultNode, "progress"));
-            videoTask.setStatus(getText(resultNode, "status"));
+            videoTask.setModel(null);
+            videoTask.setProgress(getText(resultNode, "message"));
+            String status = getText(resultNode, "status");
+            videoTask.setStatus(status == null || status.isBlank() ? "process" : status);
             videoTask.setCost(BigDecimal.ZERO);
-            videoTask.setSize(getText(resultNode, "size"));
-            videoTask.setSeconds(getInteger(resultNode, "seconds"));
+            videoTask.setSize(null);
+            videoTask.setSeconds(null);
             videoTask.setPrompt(request.getPrompt());
-            videoTask.setImageUrl(String.join(",", publicImageUrls));
-            videoTask.setIsComplete(isCompletedStatus(videoTask.getStatus()) ? 1 : 0);
+            videoTask.setImageUrl(request.getImageUrl());
+            videoTask.setIsComplete(0);
+            videoTask.setProcessing(0);
             videoTask.setStartTime(new Date());
             furnitureVideoTaskMapper.insert(videoTask);
 
@@ -302,73 +287,57 @@ public class TaskApiInvokeServiceImpl implements ITaskApiInvokeService {
             log.info("imageGenerateVideo end");
             TaskApiInvokeResponse response = new TaskApiInvokeResponse();
             response.setUserId(videoTask.getUserId());
-            response.setApiNumber(apiNumber);
             response.setCallCost(consumePrice);
             response.setApiResult(rawResponse);
             return response;
         } catch (IOException e) {
             if (generationTaskId != null) {
-                markImageToVideoGenerationFailed(generationTaskId, userId, request, publicImageUrls, e.getMessage());
+                markImageToVideoGenerationFailed(generationTaskId, userId, request, request.getImageUrl(), e.getMessage());
             }
             throw e;
         }
     }
 
-    private String callImageToVideoApi(String apiUrl, String apiKey, String prompt, List<String> publicImageUrls) throws IOException {
+    private String callVimaxAgentCreateJob(String publicImageUrl, String subject, String material, String extraPrompt) throws IOException {
         ObjectNode payload = mapper.createObjectNode();
-        payload.put("prompt", prompt == null ? "" : prompt);
-        payload.put("model", AiModeConstants.IMAGE_VIDEO_AI.getAiMode());
-        payload.put("enhance_prompt", true);
-
-        ArrayNode images = mapper.createArrayNode();
-        for (String imageUrl : publicImageUrls) {
-            if (imageUrl != null && !imageUrl.isBlank()) {
-                images.add(imageUrl);
-            }
+        payload.put("image_url", publicImageUrl);
+        if (subject != null && !subject.isBlank()) {
+            payload.put("subject", subject);
         }
-        payload.set("images", images);
-        payload.put("aspect_ratio", "9:16");
+        if (material != null && !material.isBlank()) {
+            payload.put("material", material);
+        }
+        if (extraPrompt != null && !extraPrompt.isBlank()) {
+            payload.put("extra_prompt", extraPrompt);
+        }
+        payload.put("duration", 16);
 
-        String endpoint = trimEndSlash(apiUrl) + "/v2/videos/generations";
+        String endpoint = trimEndSlash(vimaxAgentBaseUrl) + "/api/generate/json";
         String jsonBody = mapper.writeValueAsString(payload);
-        RequestBody body = RequestBody.create(
-                MediaType.parse("application/json; charset=utf-8"),
-                jsonBody
-        );
-        log.info("callImageToVideoApi jsonBody:{}", jsonBody);
+        RequestBody body = RequestBody.create(MediaType.parse("application/json; charset=utf-8"), jsonBody);
         Request request = new Request.Builder()
                 .url(endpoint)
-                .method("POST", body)
+                .post(body)
                 .addHeader("Accept", "application/json")
-                .addHeader("Authorization", "Bearer " + apiKey)
+                .addHeader("Authorization", "Bearer " + vimaxAgentApiKey)
                 .addHeader("Content-Type", "application/json")
                 .build();
 
-        List<String> errors = new ArrayList<>();
-        for (int attempt = 1; attempt <= 3; attempt++) {
-            try (Response response = client.newCall(request).execute()) {
-                if (!response.isSuccessful()) {
-                    ResponseBody errorBody = response.body();
-                    throw new IOException("图生视频调用失败: " + response.code() + " - " + (errorBody == null ? "" : errorBody.string()));
-                }
-                ResponseBody responseBody = response.body();
-                if (responseBody == null) {
-                    throw new IOException("图生视频调用失败: 响应体为空");
-                }
-                return responseBody.string();
-            } catch (IOException e) {
-                String errorMessage = "第" + attempt + "次调用失败: " + e.getMessage();
-                errors.add(errorMessage);
-                if (attempt == 3) {
-                    throw new IOException("图生视频调用失败，三次重试均失败：" + String.join("；", errors), e);
-                }
+        try (Response response = client.newCall(request).execute()) {
+            ResponseBody responseBody = response.body();
+            String responseText = responseBody == null ? "" : responseBody.string();
+            if (!response.isSuccessful()) {
+                throw new IOException("vimax-agent 创建任务失败: " + response.code() + " - " + responseText);
             }
+            if (responseText == null || responseText.isBlank()) {
+                throw new IOException("vimax-agent 创建任务失败: 响应体为空");
+            }
+            return responseText;
         }
-        throw new IOException("图生视频调用失败，三次重试均失败：" + String.join("；", errors));
     }
 
     private void markImageToVideoGenerationFailed(Long generationTaskId, Long userId, ImageGenerateVideoRequest request,
-                                                  List<String> publicImageUrls, String failReason) {
+                                                  String publicImageUrl, String failReason) {
         FurnitureVideoGenerationTaskDO generationTaskDO = furnitureVideoGenerationTaskMapper.selectById(generationTaskId);
         if (generationTaskDO != null) {
             FurnitureVideoGenerationTaskDO updateHeader = new FurnitureVideoGenerationTaskDO();
@@ -386,7 +355,7 @@ public class TaskApiInvokeServiceImpl implements ITaskApiInvokeService {
         failTask.setCost(BigDecimal.ZERO);
         failTask.setFailReason(failReason);
         failTask.setPrompt(request == null ? null : request.getPrompt());
-        failTask.setImageUrl(publicImageUrls == null ? null : String.join(",", publicImageUrls));
+        failTask.setImageUrl(publicImageUrl);
         failTask.setIsComplete(1);
         failTask.setProcessing(0);
         failTask.setStartTime(new Date());

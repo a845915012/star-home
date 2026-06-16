@@ -1,18 +1,18 @@
 package com.ruoyi.starhome.service.impl;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.github.pagehelper.PageHelper;
 import com.ruoyi.common.config.RuoYiConfig;
 import com.ruoyi.common.exception.ServiceException;
 import com.ruoyi.common.utils.SecurityUtils;
 import com.ruoyi.starhome.domain.FurnitureConsumeConfigDO;
-import com.ruoyi.starhome.domain.FurnitureNumberApiPoolDO;
 import com.ruoyi.starhome.domain.FurnitureVideoGenerationTaskDO;
 import com.ruoyi.starhome.domain.FurnitureVideoTaskDO;
 import com.ruoyi.starhome.domain.dto.FurnitureVideoTaskPageItemResp;
 import com.ruoyi.starhome.domain.dto.FurnitureVideoTaskPageRequest;
 import com.ruoyi.starhome.domain.dto.FurnitureVideoTaskPageResp;
-import com.ruoyi.starhome.mapper.FurnitureNumberApiPoolMapper;
 import com.ruoyi.starhome.mapper.FurnitureVideoGenerationTaskMapper;
 import com.ruoyi.starhome.mapper.FurnitureVideoTaskMapper;
 import com.ruoyi.starhome.service.IFurnitureConsumeConfigService;
@@ -23,22 +23,24 @@ import com.ruoyi.starhome.util.StarhomeFileUrlUtils;
 import lombok.extern.slf4j.Slf4j;
 import okhttp3.OkHttpClient;
 import okhttp3.Request;
-import okhttp3.Response;
 import okhttp3.ResponseBody;
-import org.apache.commons.lang3.StringUtils;
+import okhttp3.Response;
 import org.springframework.beans.BeanUtils;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.io.File;
 import java.io.IOException;
 import java.math.BigDecimal;
-import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.StandardOpenOption;
-import java.util.ArrayList;
+import java.time.LocalDateTime;
+import java.time.ZoneId;
+import java.time.format.DateTimeFormatter;
 import java.util.Collections;
+import java.util.Date;
 import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
@@ -48,26 +50,26 @@ import java.util.stream.Collectors;
 @Slf4j
 public class FurnitureVideoTaskServiceImpl implements IFurnitureVideoTaskService {
 
-    private static final String IMAGE2IMAGE_T8STAR_API = "image2image_t8star_api";
-    private static final String VIDEO_GENERATION_STATUS_URL = "https://ai.t8star.cn/v2/videos/generations/";
-    private static final String MOCK_VIDEO_GENERATION_STATUS_URL = "http://172.17.0.4:9999/v2/videos/generations/";
+    private static final DateTimeFormatter ISO_LOCAL_DATE_TIME = DateTimeFormatter.ISO_LOCAL_DATE_TIME;
 
     private final OkHttpClient httpClient = new OkHttpClient.Builder()
             .connectTimeout(5, TimeUnit.SECONDS)
             .readTimeout(30, TimeUnit.SECONDS)
             .build();
 
+    private final ObjectMapper objectMapper = new ObjectMapper();
+
+    @Value("${starhome.vimax-agent.base-url}")
+    private String vimaxAgentBaseUrl;
+
+    @Value("${starhome.vimax-agent.api-key:}")
+    private String vimaxAgentApiKey;
+
     @Autowired
     private FurnitureVideoTaskMapper furnitureVideoTaskMapper;
 
     @Autowired
-    private FurnitureNumberApiPoolMapper furnitureNumberApiPoolMapper;
-
-    @Autowired
     private FurnitureVideoGenerationTaskMapper furnitureVideoGenerationTaskMapper;
-
-    @Autowired
-    private FurnitureVideoTaskPostProcessService furnitureVideoTaskPostProcessService;
 
     @Autowired
     private IFurnitureUserBalanceAccountService furnitureUserBalanceAccountService;
@@ -82,90 +84,6 @@ public class FurnitureVideoTaskServiceImpl implements IFurnitureVideoTaskService
     private StarhomeFileUrlUtils starhomeFileUrlUtils;
 
 
-    @Override
-    public void processAppendingGenerationTasks() {
-        List<FurnitureVideoGenerationTaskDO> appendingHeaders = furnitureVideoGenerationTaskMapper.selectList(
-                new LambdaQueryWrapper<FurnitureVideoGenerationTaskDO>()
-                        .eq(FurnitureVideoGenerationTaskDO::getStatus, "appending")
-                        .orderByAsc(FurnitureVideoGenerationTaskDO::getId)
-        );
-
-        if (appendingHeaders == null || appendingHeaders.isEmpty()) {
-            return;
-        }
-
-        for (FurnitureVideoGenerationTaskDO header : appendingHeaders) {
-            if (header == null || header.getId() == null) {
-                continue;
-            }
-            try {
-                mergeHeaderVideosAndUpdateUrl(header);
-            } catch (Exception e) {
-                log.error("拼接视频失败, generationTaskId={}", header.getId(), e);
-                FurnitureVideoGenerationTaskDO failUpdate = new FurnitureVideoGenerationTaskDO();
-                failUpdate.setId(header.getId());
-                failUpdate.setStatus("failed");
-                failUpdate.setErrorMessage(e.getMessage());
-                furnitureVideoGenerationTaskMapper.updateById(failUpdate);
-            }
-        }
-    }
-
-    private void mergeHeaderVideosAndUpdateUrl(FurnitureVideoGenerationTaskDO header) {
-        List<FurnitureVideoTaskDO> detailList = furnitureVideoTaskMapper.selectList(
-                new LambdaQueryWrapper<FurnitureVideoTaskDO>()
-                        .eq(FurnitureVideoTaskDO::getGenerationTaskId, header.getId())
-                        .orderByAsc(FurnitureVideoTaskDO::getStartTime)
-                        .orderByAsc(FurnitureVideoTaskDO::getId)
-        );
-
-        if (detailList == null || detailList.isEmpty()) {
-            throw new ServiceException("单据头下无可拼接明细");
-        }
-
-        List<FurnitureVideoTaskDO> furnitureVideoTaskList = detailList.stream()
-                .filter(item -> item.getStatus() != null && item.getStatus().equalsIgnoreCase("success"))
-                .collect(Collectors.toList());
-        if(furnitureVideoTaskList.size() != header.getExpectedTaskCount()){
-            header.setStatus("failed");
-            header.setErrorMessage("即视频生成数量小于等于任务需要生成视频数");
-            return;
-        }
-        for (FurnitureVideoTaskDO furnitureVideoTaskDO : furnitureVideoTaskList) {
-            if(StringUtils.isBlank(furnitureVideoTaskDO.getVideoUrlLocal())){
-                try{
-                    String localUrl = starhomeFileUrlUtils.downloadRemoteVideoToProfile(furnitureVideoTaskDO.getVideoUrlRemote());
-                    furnitureVideoTaskDO.setVideoUrlLocal(localUrl);
-                    furnitureVideoTaskMapper.updateById(furnitureVideoTaskDO);
-                }catch (Exception e){
-                    log.error("taskId:{},下载视频失败",furnitureVideoTaskDO.getTaskId());
-                }
-            }
-        }
-        List<String> localSegmentUrls = detailList.stream()
-                .filter(item -> item.getVideoUrlLocal() != null && !item.getVideoUrlLocal().isBlank())
-                .map(FurnitureVideoTaskDO::getVideoUrlLocal)
-                .collect(Collectors.toList());
-        if (localSegmentUrls.isEmpty()) {
-            throw new ServiceException("单据头下无成功视频可拼接");
-        }
-        if(localSegmentUrls.size() != header.getExpectedTaskCount()){
-            throw new ServiceException("部分本地视频链接为空，后续重新拉取");
-        }
-        String mergedLocalUrl = mergeLocalMp4Videos(localSegmentUrls);
-        String mergedRemoteUrl = starhomeFileUrlUtils.toPublicFileUrl(resolveProfilePathByLocalUrl(mergedLocalUrl).toFile());
-
-        FurnitureVideoGenerationTaskDO successUpdate = new FurnitureVideoGenerationTaskDO();
-        successUpdate.setId(header.getId());
-        successUpdate.setLocalFinalVideoUrl(mergedLocalUrl);
-        successUpdate.setRemoteFinalVideoUrl(mergedRemoteUrl);
-        successUpdate.setStatus("success");
-        successUpdate.setErrorMessage(null);
-        furnitureVideoGenerationTaskMapper.updateById(successUpdate);
-        furnitureUserBalanceAccountService.consume(header.getUserId(), resolveVideoConsumePrice(header));
-        taskApiInvokeService.completeDeferredVideoUsageRecord(header.getId(), mergedRemoteUrl, "SUCCESS");
-    }
-
     private BigDecimal resolveVideoConsumePrice(FurnitureVideoGenerationTaskDO header) {
         if (header != null && header.getConsumePrice() != null) {
             return header.getConsumePrice();
@@ -174,75 +92,6 @@ public class FurnitureVideoTaskServiceImpl implements IFurnitureVideoTaskService
                 ? "IMAGE2VIDEO" : header.getConsumeCode();
         FurnitureConsumeConfigDO consumeConfig = furnitureConsumeConfigService.selectEnabledByCode(consumeCode);
         return consumeConfig.getPrice() == null ? BigDecimal.ZERO : consumeConfig.getPrice();
-    }
-
-    private String mergeLocalMp4Videos(List<String> localSegmentUrls) {
-        File downloadDir = new File(RuoYiConfig.getProfile(), "download/video");
-        if (!downloadDir.exists() && !downloadDir.mkdirs()) {
-            throw new ServiceException("创建视频下载目录失败: " + downloadDir.getAbsolutePath());
-        }
-
-        List<Path> localPaths = new ArrayList<>();
-        for (String localUrl : localSegmentUrls) {
-            Path path = resolveProfilePathByLocalUrl(localUrl);
-            if (!Files.exists(path) || !Files.isRegularFile(path)) {
-                throw new ServiceException("待拼接视频文件不存在: " + path);
-            }
-            localPaths.add(path);
-        }
-
-        Path listFile = null;
-        try {
-            listFile = Files.createTempFile("ffmpeg_concat_", ".txt");
-            List<String> lines = localPaths.stream()
-                    .map(path -> "file '" + path.toAbsolutePath().toString().replace("\\", "/") + "'")
-                    .collect(Collectors.toList());
-            log.info("localPaths:{}", lines);
-            Files.write(listFile, lines, StandardCharsets.UTF_8, StandardOpenOption.TRUNCATE_EXISTING);
-
-            String outputName = "video_merged_" + System.currentTimeMillis() + "_" + UUID.randomUUID().toString().replace("-", "") + ".mp4";
-            File outputFile = new File(downloadDir, outputName);
-
-            ProcessBuilder pb = new ProcessBuilder(
-                    "ffmpeg", "-y", "-f", "concat", "-safe", "0",
-                    "-i", listFile.toAbsolutePath().toString(),
-                    "-c", "copy",
-                    outputFile.getAbsolutePath()
-            );
-            pb.redirectErrorStream(true);
-            Process process = pb.start();
-            String ffmpegOutput = new String(process.getInputStream().readAllBytes(), StandardCharsets.UTF_8);
-            int exitCode = process.waitFor();
-
-            if (exitCode != 0 || !outputFile.exists() || outputFile.length() <= 0) {
-                throw new ServiceException("ffmpeg拼接失败: " + ffmpegOutput);
-            }
-
-            return "/profile/download/video/" + outputName;
-        } catch (IOException e) {
-            throw new ServiceException("执行ffmpeg拼接异常: " + e.getMessage());
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
-            throw new ServiceException("ffmpeg拼接被中断: " + e.getMessage());
-        } finally {
-            if (listFile != null) {
-                try {
-                    Files.deleteIfExists(listFile);
-                } catch (IOException ignore) {
-                    // ignore
-                }
-            }
-        }
-    }
-
-    private Path resolveProfilePathByLocalUrl(String localUrl) {
-        String normalized = localUrl;
-        if (normalized.startsWith("/profile/")) {
-            normalized = normalized.substring("/profile/".length());
-        } else if (normalized.startsWith("profile/")) {
-            normalized = normalized.substring("profile/".length());
-        }
-        return new File(RuoYiConfig.getProfile(), normalized).toPath();
     }
 
     @Override
@@ -281,45 +130,84 @@ public class FurnitureVideoTaskServiceImpl implements IFurnitureVideoTaskService
     }
 
     @Override
+    @Transactional(rollbackFor = Exception.class)
     public String getProcessByTaskId(String taskId) {
         if (taskId == null || taskId.isBlank()) {
             throw new ServiceException("taskId不能为空");
         }
+        if (vimaxAgentBaseUrl == null || vimaxAgentBaseUrl.isBlank()) {
+            throw new ServiceException("vimax-agent base-url 未配置（starhome.vimax-agent.base-url）");
+        }
 
-        FurnitureNumberApiPoolDO apiPool = furnitureNumberApiPoolMapper.selectOne(
-                new LambdaQueryWrapper<FurnitureNumberApiPoolDO>()
-                        .eq(FurnitureNumberApiPoolDO::getNumber, IMAGE2IMAGE_T8STAR_API)
+        FurnitureVideoTaskDO task = furnitureVideoTaskMapper.selectOne(
+                new LambdaQueryWrapper<FurnitureVideoTaskDO>()
+                        .eq(FurnitureVideoTaskDO::getTaskId, taskId)
                         .last("limit 1")
         );
-        if (apiPool == null || apiPool.getApiKey() == null || apiPool.getApiKey().isBlank()) {
-            throw new ServiceException("未找到image2image_t8star_api的token配置");
+        if (task == null) {
+            throw new ServiceException("未找到视频任务: " + taskId);
         }
 
-        String responseText = queryVideoTaskProcess(taskId, apiPool.getApiKey());
-        FurnitureVideoTaskDO updatedTask = furnitureVideoTaskPostProcessService.updateVideoTaskByResponse(taskId, responseText);
-        if (updatedTask != null) {
-            try {
-                furnitureVideoTaskPostProcessService.handleFailedVideoTaskIfNeeded(updatedTask);
-            } catch (Exception e) {
-                log.error("处理失败任务逻辑异常，不影响主任务状态提交, taskId={}", taskId, e);
-            }
-            try {
-                furnitureVideoTaskPostProcessService.handleNextVideoSegmentIfNeeded(updatedTask);
-            } catch (Exception e) {
-                log.error("处理下一段任务逻辑异常，不影响主任务状态提交, taskId={}", taskId, e);
-            }
-        }
+        String responseText = queryVimaxJobStatus(taskId);
+        try {
+            JsonNode root = objectMapper.readTree(responseText);
+            String vimaxStatus = getText(root, "status");
+            String mappedStatus = mapVimaxStatusToLocal(vimaxStatus);
+            String progress = getText(root, "progress");
+            String error = getText(root, "error");
+            String resultUrl = getText(root, "result_url");
+            String downloadUrl = buildDownloadUrl(taskId, resultUrl);
 
-        return responseText;
+            Date finishedAt = parseIsoDate(getText(root, "finished_at"));
+
+            FurnitureVideoTaskDO update = new FurnitureVideoTaskDO();
+            update.setId(task.getId());
+            update.setStatus(mappedStatus);
+            update.setProgress(progress);
+            update.setFailReason(error);
+            update.setVideoUrlRemote(downloadUrl);
+            if (finishedAt != null) {
+                update.setFinishTime(finishedAt);
+            }
+
+            if ("failed".equalsIgnoreCase(vimaxStatus)) {
+                update.setIsComplete(1);
+                furnitureVideoTaskMapper.updateById(update);
+                markHeaderFailedIfNeeded(task.getGenerationTaskId(), error == null || error.isBlank() ? "任务失败" : error);
+                taskApiInvokeService.completeDeferredVideoUsageRecord(task.getGenerationTaskId(), null, "FAIL");
+                return responseText;
+            }
+
+            if ("completed".equalsIgnoreCase(vimaxStatus)) {
+                String localUrl = task.getVideoUrlLocal();
+                if (localUrl == null || localUrl.isBlank()) {
+                    localUrl = downloadVimaxVideoToProfile(taskId);
+                    update.setVideoUrlLocal(localUrl);
+                }
+
+                String remoteUrl = finalizeHeaderIfNeeded(task, localUrl);
+                update.setVideoUrlRemote(remoteUrl);
+                update.setIsComplete(1);
+                update.setStatus("success");
+                furnitureVideoTaskMapper.updateById(update);
+                return responseText;
+            }
+
+            update.setIsComplete(0);
+            furnitureVideoTaskMapper.updateById(update);
+            return responseText;
+        } catch (Exception e) {
+            throw new ServiceException("同步 vimax-agent 任务状态失败: " + e.getMessage());
+        }
     }
 
-    private String queryVideoTaskProcess(String taskId, String token) {
-        Request request = new Request.Builder()
-                .url(VIDEO_GENERATION_STATUS_URL + taskId)
-                .get()
-                .addHeader("Authorization", "Bearer " + token)
-                .build();
-
+    private String queryVimaxJobStatus(String jobId) {
+        String url = trimEndSlash(vimaxAgentBaseUrl) + "/api/jobs/" + jobId;
+        Request.Builder builder = new Request.Builder().url(url).get().addHeader("Accept", "application/json");
+        if (vimaxAgentApiKey != null && !vimaxAgentApiKey.isBlank()) {
+            builder.addHeader("Authorization", "Bearer " + vimaxAgentApiKey);
+        }
+        Request request = builder.build();
         try (Response response = httpClient.newCall(request).execute()) {
             ResponseBody body = response.body();
             String responseText = body == null ? "" : body.string();
@@ -333,6 +221,158 @@ public class FurnitureVideoTaskServiceImpl implements IFurnitureVideoTaskService
         } catch (IOException e) {
             throw new ServiceException("查询视频任务进度异常: " + e.getMessage());
         }
+    }
+
+    private String downloadVimaxVideoToProfile(String jobId) {
+        File downloadDir = new File(RuoYiConfig.getProfile(), "download/video");
+        if (!downloadDir.exists() && !downloadDir.mkdirs()) {
+            throw new ServiceException("创建视频下载目录失败: " + downloadDir.getAbsolutePath());
+        }
+
+        String url = trimEndSlash(vimaxAgentBaseUrl) + "/api/jobs/" + jobId + "/download";
+        Request.Builder builder = new Request.Builder().url(url).get();
+        if (vimaxAgentApiKey != null && !vimaxAgentApiKey.isBlank()) {
+            builder.addHeader("Authorization", "Bearer " + vimaxAgentApiKey);
+        }
+        Request request = builder.build();
+
+        try (Response response = httpClient.newCall(request).execute()) {
+            if (!response.isSuccessful()) {
+                ResponseBody err = response.body();
+                String errText = err == null ? "" : err.string();
+                throw new ServiceException("下载视频失败: " + response.code() + " - " + errText);
+            }
+            ResponseBody body = response.body();
+            if (body == null) {
+                throw new ServiceException("下载视频失败: 响应体为空");
+            }
+            String fileName = "vimax_video_" + System.currentTimeMillis() + "_" + UUID.randomUUID().toString().replace("-", "") + ".mp4";
+            File targetFile = new File(downloadDir, fileName);
+            Files.write(targetFile.toPath(), body.bytes());
+            if (!targetFile.exists() || !targetFile.isFile() || targetFile.length() <= 0) {
+                throw new ServiceException("下载视频失败: 文件落盘异常");
+            }
+            return "/profile/download/video/" + fileName;
+        } catch (IOException e) {
+            throw new ServiceException("下载视频失败: " + e.getMessage());
+        }
+    }
+
+    private String finalizeHeaderIfNeeded(FurnitureVideoTaskDO task, String localVideoUrl) {
+        if (task == null || task.getGenerationTaskId() == null) {
+            return null;
+        }
+        FurnitureVideoGenerationTaskDO header = furnitureVideoGenerationTaskMapper.selectById(task.getGenerationTaskId());
+        if (header == null) {
+            return null;
+        }
+        if ("success".equalsIgnoreCase(header.getStatus())) {
+            return header.getRemoteFinalVideoUrl();
+        }
+
+        File localFile = resolveProfilePathByLocalUrl(localVideoUrl).toFile();
+        String remoteUrl = starhomeFileUrlUtils.toPublicFileUrl(localFile);
+
+        FurnitureVideoGenerationTaskDO updateHeader = new FurnitureVideoGenerationTaskDO();
+        updateHeader.setId(header.getId());
+        updateHeader.setCurrentTaskCount(1);
+        updateHeader.setStatus("success");
+        updateHeader.setLocalFinalVideoUrl(localVideoUrl);
+        updateHeader.setRemoteFinalVideoUrl(remoteUrl);
+        updateHeader.setErrorMessage(null);
+        updateHeader.setUpdateTime(LocalDateTime.now());
+        furnitureVideoGenerationTaskMapper.updateById(updateHeader);
+
+        furnitureUserBalanceAccountService.consume(header.getUserId(), resolveVideoConsumePrice(header));
+        taskApiInvokeService.completeDeferredVideoUsageRecord(header.getId(), remoteUrl, "SUCCESS");
+        return remoteUrl;
+    }
+
+    private void markHeaderFailedIfNeeded(Long generationTaskId, String reason) {
+        if (generationTaskId == null) {
+            return;
+        }
+        FurnitureVideoGenerationTaskDO header = furnitureVideoGenerationTaskMapper.selectById(generationTaskId);
+        if (header == null) {
+            return;
+        }
+        if ("success".equalsIgnoreCase(header.getStatus()) || "failed".equalsIgnoreCase(header.getStatus())) {
+            return;
+        }
+        FurnitureVideoGenerationTaskDO updateHeader = new FurnitureVideoGenerationTaskDO();
+        updateHeader.setId(generationTaskId);
+        updateHeader.setStatus("failed");
+        updateHeader.setErrorMessage(reason);
+        updateHeader.setUpdateTime(LocalDateTime.now());
+        furnitureVideoGenerationTaskMapper.updateById(updateHeader);
+    }
+
+    private String buildDownloadUrl(String jobId, String resultUrl) {
+        String path = resultUrl;
+        if (path == null || path.isBlank()) {
+            path = "/api/jobs/" + jobId + "/download";
+        }
+        if (path.startsWith("http://") || path.startsWith("https://")) {
+            return path;
+        }
+        if (!path.startsWith("/")) {
+            path = "/" + path;
+        }
+        return trimEndSlash(vimaxAgentBaseUrl) + path;
+    }
+
+    private String mapVimaxStatusToLocal(String vimaxStatus) {
+        if (vimaxStatus == null || vimaxStatus.isBlank()) {
+            return "process";
+        }
+        if ("completed".equalsIgnoreCase(vimaxStatus)) {
+            return "success";
+        }
+        if ("failed".equalsIgnoreCase(vimaxStatus)) {
+            return "failed";
+        }
+        return "process";
+    }
+
+    private Date parseIsoDate(String isoDateTime) {
+        if (isoDateTime == null || isoDateTime.isBlank()) {
+            return null;
+        }
+        try {
+            LocalDateTime ldt = LocalDateTime.parse(isoDateTime, ISO_LOCAL_DATE_TIME);
+            return Date.from(ldt.atZone(ZoneId.systemDefault()).toInstant());
+        } catch (Exception e) {
+            return null;
+        }
+    }
+
+    private String getText(JsonNode node, String field) {
+        if (node == null || field == null) {
+            return null;
+        }
+        JsonNode value = node.path(field);
+        return value.isMissingNode() || value.isNull() ? null : value.asText();
+    }
+
+    private String trimEndSlash(String url) {
+        if (url == null) {
+            return "";
+        }
+        String trimmed = url.trim();
+        while (trimmed.endsWith("/")) {
+            trimmed = trimmed.substring(0, trimmed.length() - 1);
+        }
+        return trimmed;
+    }
+
+    private Path resolveProfilePathByLocalUrl(String localUrl) {
+        String normalized = localUrl == null ? "" : localUrl;
+        if (normalized.startsWith("/profile/")) {
+            normalized = normalized.substring("/profile/".length());
+        } else if (normalized.startsWith("profile/")) {
+            normalized = normalized.substring("profile/".length());
+        }
+        return new File(RuoYiConfig.getProfile(), normalized).toPath();
     }
 
     private List<FurnitureVideoTaskPageItemResp> convertList(List<FurnitureVideoTaskDO> records) {

@@ -5,6 +5,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.ruoyi.common.config.RuoYiConfig;
 import com.ruoyi.common.exception.ServiceException;
+import com.ruoyi.common.utils.StringUtils;
 import com.ruoyi.framework.manager.AsyncManager;
 import com.ruoyi.starhome.domain.FurnitureVideoGenerationTaskDO;
 import com.ruoyi.starhome.domain.FurnitureVideoTaskDO;
@@ -205,11 +206,11 @@ public class FurnitureVideoTaskPostProcessService {
         retryReq.setProduct(generationTask.getProduct());
         retryReq.setMaterial(generationTask.getMaterial());
         retryReq.setPrompt(currentTask.getPrompt());
-        retryReq.setImageUrls(Collections.singletonList(currentTask.getImageUrl()));
+        retryReq.setImageUrl(currentTask.getImageUrl());
 //        retryReq.setImageUrls(resolveRetryImageUrls(generationTask, currentTask));
         log.info("retry failed video task, retryReq={}", retryReq);
         retryReq.setConsumeCode(resolveGenerationConsumeCode(generationTask));
-        if (retryReq.getImageUrls() == null || retryReq.getImageUrls().isEmpty()) {
+        if (StringUtils.isBlank(retryReq.getImageUrl())) {
             log.warn("视频任务失败后重试被跳过, 未找到有效入参图片, taskId={}", currentTask.getTaskId());
             return;
         }
@@ -273,7 +274,7 @@ public class FurnitureVideoTaskPostProcessService {
         ImageGenerateVideoRequest nextReq = new ImageGenerateVideoRequest();
         nextReq.setGenerationTaskId(generationTask.getId());
         nextReq.setUserId(generationTask.getUserId() != null ? generationTask.getUserId() : currentTask.getUserId());
-        nextReq.setImageUrls(Collections.singletonList(lastFrameImageUrl));
+        nextReq.setImageUrl(lastFrameImageUrl);
         nextReq.setProduct(generationTask.getProduct());
         nextReq.setMaterial(generationTask.getMaterial());
         nextReq.setPrompt(resolveNextPrompt(generationTask));

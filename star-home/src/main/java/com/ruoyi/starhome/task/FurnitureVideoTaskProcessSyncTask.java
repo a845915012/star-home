@@ -190,15 +190,4 @@ public class FurnitureVideoTaskProcessSyncTask {
         return new Date((epochMillis / 1000) * 1000);
     }
 
-    /**
-     * 每1分钟同步一次未完成视频任务进度
-     */
-    @Scheduled(cron = "0 */1 * * * ?")
-    public void syncAppendVideoTaskProcess() {
-        try {
-            furnitureVideoTaskService.processAppendingGenerationTasks();
-        } catch (Exception e) {
-            log.error("处理appending单据头视频拼接失败", e);
-        }
-    }
 }

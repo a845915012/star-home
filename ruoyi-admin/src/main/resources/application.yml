@@ -153,6 +153,9 @@ starhome:
   video-task:
     # 视频任务处理锁超时分钟数（超过该时间会在下次调度时回收锁）
     lock-expire-minutes: 10
+  vimax-agent:
+    base-url: http://vimax-api:8000
+    api-key: 753951abc
 
 # 支付宝配置 (基础配置，敏感信息在 application-alipay.yml 中配置)
 alipay:

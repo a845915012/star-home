@@ -6,11 +6,12 @@ import java.util.List;
 
 @Data
 public class ImageGenerateVideoClientRequest {
-    private String apiNumber;
     private String consumeCode;
     private String product;
     private String material;
-    private List<String> imageUrls;
+    /**
+     * 必须是外部可访问的url
+     */
+    private String imageUrl;
     private String prompt;
-    private Boolean generateDescription;
 }

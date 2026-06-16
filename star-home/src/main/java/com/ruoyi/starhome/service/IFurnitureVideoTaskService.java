@@ -14,5 +14,4 @@ public interface IFurnitureVideoTaskService {
 
     String getProcessByTaskId(String taskId);
 
-    void processAppendingGenerationTasks();
 }
