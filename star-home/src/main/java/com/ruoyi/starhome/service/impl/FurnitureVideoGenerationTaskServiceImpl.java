@@ -33,7 +33,7 @@ public class FurnitureVideoGenerationTaskServiceImpl implements IFurnitureVideoG
                     StringUtils.isNotBlank(request.getStatus()) && request.getStatus().equalsIgnoreCase("process") ?
                     new LambdaQueryWrapper<FurnitureVideoGenerationTaskDO>()
                             .eq(FurnitureVideoGenerationTaskDO::getUserId, userId)
-                            .in(FurnitureVideoGenerationTaskDO::getStatus,"process","appending")
+                            .eq(FurnitureVideoGenerationTaskDO::getStatus, "process")
                             .orderByDesc(FurnitureVideoGenerationTaskDO::getId)
                     : new LambdaQueryWrapper<FurnitureVideoGenerationTaskDO>()
                             .eq(FurnitureVideoGenerationTaskDO::getUserId, userId)

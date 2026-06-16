@@ -1108,7 +1108,7 @@ public class TaskApiInvokeServiceImpl implements ITaskApiInvokeService {
 
     /**
      * 延迟完成型视频生成调用的初始记录落库。
-     * 适用于图像生成视频场景，接口调用成功后先写入基础信息，等待后续拼接完成再补全结果字段。
+     * 适用于图像生成视频场景，接口调用成功后先写入基础信息，等待异步任务完成后再补全结果字段。
      */
     public void createDeferredVideoUsageRecord(Long userId, String module, String aiMode, Long generationTaskId,
                                                String prompt, String inputFiles, BigDecimal totalPrice) {
@@ -1121,7 +1121,7 @@ public class TaskApiInvokeServiceImpl implements ITaskApiInvokeService {
 
     /**
      * 补全延迟完成型视频生成调用记录。
-     * 在视频拼接结束后，回填输出文件和最终状态，完成整条 AI 调用记录。
+     * 在视频生成任务结束后，回填输出文件和最终状态，完成整条 AI 调用记录。
      */
     @Override
     public void completeDeferredVideoUsageRecord(Long generationTaskId, String outputFiles, String status) {
