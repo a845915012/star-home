@@ -65,6 +65,7 @@
             <artifactId>dysmsapi20170525</artifactId>
             <version>3.0.0</version>
         </dependency>
+
     </dependencies>
 
 </project>

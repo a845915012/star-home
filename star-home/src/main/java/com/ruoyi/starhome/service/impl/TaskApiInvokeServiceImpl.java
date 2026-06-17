@@ -5,9 +5,9 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
-import com.ruoyi.common.config.RuoYiConfig;
 import com.ruoyi.common.exception.ServiceException;
 import com.ruoyi.common.utils.StringUtils;
+import com.ruoyi.common.utils.file.OssUploadService;
 import com.ruoyi.framework.security.util.SecurityFrameworkUtils;
 import com.ruoyi.starhome.domain.*;
 import com.ruoyi.starhome.domain.dto.*;
@@ -16,7 +16,6 @@ import com.ruoyi.starhome.service.IApiCallMonitorCacheService;
 import com.ruoyi.starhome.service.IFurnitureConsumeConfigService;
 import com.ruoyi.starhome.service.IFurnitureUserBalanceAccountService;
 import com.ruoyi.starhome.service.ITaskApiInvokeService;
-import com.ruoyi.starhome.util.StarhomeFileUrlUtils;
 import com.ruoyi.framework.manager.AsyncManager;
 import lombok.extern.slf4j.Slf4j;
 import okhttp3.*;
@@ -29,16 +28,16 @@ import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
 import java.io.File;
 import java.io.IOException;
-import java.nio.file.Files;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.util.Base64;
 import java.util.ArrayList;
 import java.util.Date;
 import java.util.List;
 import java.util.Map;
 import java.util.TimerTask;
-import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
 
@@ -87,7 +86,7 @@ public class TaskApiInvokeServiceImpl implements ITaskApiInvokeService {
     private FurnitureVideoGenerationTaskMapper furnitureVideoGenerationTaskMapper;
 
     @Autowired
-    private StarhomeFileUrlUtils starhomeFileUrlUtils;
+    private OssUploadService ossUploadService;
 
     @Value("${starhome.public-file-base-url}")
     private String serverUrl;
@@ -195,6 +194,10 @@ public class TaskApiInvokeServiceImpl implements ITaskApiInvokeService {
         if (request == null || StringUtils.isBlank(request.getImageUrl())) {
             throw new ServiceException("图片URL列表不能为空");
         }
+        if (!isExternalHttpUrl(request.getImageUrl())) {
+            throw new ServiceException("图片地址必须是外部可访问的http/https地址");
+        }
+        request.setImageUrl(request.getImageUrl().trim());
 
         Long userId = SecurityFrameworkUtils.getLoginUserId();
         if (userId == null) {
@@ -457,12 +460,155 @@ public class TaskApiInvokeServiceImpl implements ITaskApiInvokeService {
                     apiPool.getApiKey(),
                     usageHolder
             );
-            result.setApiResult(apiResult);
+            result.setApiResult(uploadGeminiImageResultToOss(apiResult));
             result.setUsageRaw(usageHolder[0]);
         }catch (IOException e){
             throw new IOException("图生图" + e.getMessage());
         }
         return result;
+    }
+
+    private String uploadGeminiImageResultToOss(String apiResult) {
+        if (apiResult == null || apiResult.isBlank()) {
+            return apiResult;
+        }
+        String candidate = apiResult.trim();
+
+        String markdownUrl = extractMarkdownImageUrl(candidate);
+        if (markdownUrl != null && !markdownUrl.isBlank()) {
+            candidate = markdownUrl.trim();
+        }
+
+        String httpUrl = extractFirstHttpUrl(candidate);
+        if (httpUrl != null && !httpUrl.isBlank()) {
+            return httpUrl;
+        }
+
+        if (!candidate.startsWith("data:")) {
+            int dataIndex = candidate.indexOf("data:image");
+            if (dataIndex >= 0) {
+                candidate = candidate.substring(dataIndex);
+                int cut = firstPositiveIndex(candidate.indexOf(')'), candidate.indexOf(' '), candidate.indexOf('\n'), candidate.indexOf('\r'));
+                if (cut > 0) {
+                    candidate = candidate.substring(0, cut);
+                }
+                candidate = candidate.trim();
+            }
+        }
+
+        if (candidate.startsWith("data:")) {
+            return uploadImageDataUrlToOss(candidate);
+        }
+        return apiResult;
+    }
+
+    private String extractFirstHttpUrl(String text) {
+        if (text == null || text.isBlank()) {
+            return null;
+        }
+        String t = text.trim();
+        int https = t.indexOf("https://");
+        int http = t.indexOf("http://");
+        int start;
+        if (https >= 0 && http >= 0) {
+            start = Math.min(https, http);
+        } else {
+            start = Math.max(https, http);
+        }
+        if (start < 0) {
+            return null;
+        }
+        int end = t.length();
+        for (int i = start; i < t.length(); i++) {
+            char c = t.charAt(i);
+            if (Character.isWhitespace(c) || c == '`' || c == '"' || c == '\'' || c == ')' || c == ']' || c == '>' || c == '<') {
+                end = i;
+                break;
+            }
+        }
+        String url = t.substring(start, end).trim();
+        while (url.endsWith(".") || url.endsWith(",") || url.endsWith(";") || url.endsWith(":")) {
+            url = url.substring(0, url.length() - 1);
+        }
+        return url;
+    }
+
+    private int firstPositiveIndex(int... values) {
+        int min = -1;
+        for (int v : values) {
+            if (v <= 0) {
+                continue;
+            }
+            min = min < 0 ? v : Math.min(min, v);
+        }
+        return min;
+    }
+
+    private String uploadImageDataUrlToOss(String dataUrl) {
+        ParsedDataUrl parsed = parseDataUrl(dataUrl);
+        if (parsed.base64Data == null || parsed.base64Data.isBlank()) {
+            throw new ServiceException("Gemini返回的图片数据为空");
+        }
+        if (parsed.mimeType == null || !parsed.mimeType.toLowerCase().startsWith("image/")) {
+            throw new ServiceException("Gemini返回的图片MIME不正确: " + parsed.mimeType);
+        }
+
+        byte[] bytes;
+        try {
+            String clean = parsed.base64Data.replace("\n", "").replace("\r", "").trim();
+            bytes = Base64.getDecoder().decode(clean.getBytes(StandardCharsets.UTF_8));
+        } catch (IllegalArgumentException e) {
+            throw new ServiceException("Gemini返回的base64解析失败");
+        }
+        if (bytes.length == 0) {
+            throw new ServiceException("Gemini返回的图片数据为空");
+        }
+
+        try {
+            return ossUploadService.uploadBytes("image/generate", bytes, parsed.mimeType, resolveImageExtByMimeType(parsed.mimeType)).getUrl();
+        } catch (IOException e) {
+            log.error("上传图片到OSS失败, err:{}", e.getMessage(), e);
+            throw new ServiceException("上传图片到OSS失败");
+        }
+    }
+
+    private ParsedDataUrl parseDataUrl(String dataUrl) {
+        String text = dataUrl == null ? "" : dataUrl.trim();
+        if (!text.startsWith("data:")) {
+            throw new ServiceException("不支持的图片数据格式");
+        }
+        int comma = text.indexOf(',');
+        if (comma < 0) {
+            throw new ServiceException("不支持的图片数据格式");
+        }
+        String meta = text.substring(5, comma);
+        String data = text.substring(comma + 1);
+        String mimeType = "application/octet-stream";
+        boolean base64 = false;
+        if (!meta.isBlank()) {
+            String[] parts = meta.split(";");
+            if (parts.length > 0 && parts[0].contains("/")) {
+                mimeType = parts[0].trim();
+            }
+            for (String part : parts) {
+                if ("base64".equalsIgnoreCase(part.trim())) {
+                    base64 = true;
+                    break;
+                }
+            }
+        }
+        if (!base64) {
+            throw new ServiceException("仅支持base64格式的图片数据");
+        }
+        ParsedDataUrl parsed = new ParsedDataUrl();
+        parsed.mimeType = mimeType;
+        parsed.base64Data = data;
+        return parsed;
+    }
+
+    private static class ParsedDataUrl {
+        private String mimeType;
+        private String base64Data;
     }
 
     private String generateByChatCompletions(String model,String question, List<String> filePaths, String url, String apiKey, String[] usageHolder) throws IOException {
@@ -593,8 +739,10 @@ public class TaskApiInvokeServiceImpl implements ITaskApiInvokeService {
     }
 
     private String toPublicFileUrl(String filePath) {
-        File file = resolveProfileFile(filePath);
-        return starhomeFileUrlUtils.toPublicFileUrl(file);
+        if (!isExternalHttpUrl(filePath)) {
+            throw new ServiceException("文件地址格式不正确，仅支持http/https: " + filePath);
+        }
+        return filePath.trim();
     }
 
     private String trimEndSlash(String url) {
@@ -1266,7 +1414,7 @@ public class TaskApiInvokeServiceImpl implements ITaskApiInvokeService {
                 record.setGenerationTaskId(generationTaskId);
                 record.setPrompt(prompt);
                 record.setUserPrompt(userPrompt);
-                record.setInputFiles(serverUrl + ":" +serverPort + inputFiles);
+                record.setInputFiles(inputFiles);
                 record.setOutputFiles(outputFiles);
                 record.setOuputContent(ouputContent);
                 record.setStatus(status);
@@ -1372,69 +1520,12 @@ public class TaskApiInvokeServiceImpl implements ITaskApiInvokeService {
         return null;
     }
 
-    private File resolveProfileFile(String filePath) {
-        if (filePath == null || filePath.isBlank()) {
-            throw new ServiceException("文件地址不能为空");
-        }
-        String normalized = filePath.trim().replace("\\", "/");
-
-        // 兼容外部图片链接：先下载到 profile/download 目录，再按既有流程处理
-        if (isExternalHttpUrl(normalized)) {
-            return downloadExternalImageToProfile(normalized);
-        }
-
-        if (!normalized.startsWith("/profile/")) {
-            throw new ServiceException("文件地址格式不正确: " + filePath);
-        }
-        String relativePath = normalized.substring("/profile".length());
-        File file = new File(RuoYiConfig.getProfile(), relativePath);
-        if (!file.exists() || !file.isFile()) {
-            throw new ServiceException("文件不存在: " + filePath);
-        }
-        return file;
-    }
-
     private boolean isExternalHttpUrl(String path) {
         if (path == null) {
             return false;
         }
         String lower = path.toLowerCase();
         return lower.startsWith("http://") || lower.startsWith("https://");
-    }
-
-    private File downloadExternalImageToProfile(String imageUrl) {
-        File downloadDir = new File(RuoYiConfig.getProfile(), "download/image");
-        if (!downloadDir.exists() && !downloadDir.mkdirs()) {
-            throw new ServiceException("创建下载目录失败: " + downloadDir.getAbsolutePath());
-        }
-
-        Request request = new Request.Builder()
-                .url(imageUrl)
-                .get()
-                .build();
-
-        try (Response response = client.newCall(request).execute()) {
-            if (!response.isSuccessful()) {
-                throw new ServiceException("下载外部图片失败: " + response.code());
-            }
-            ResponseBody body = response.body();
-            if (body == null) {
-                throw new ServiceException("下载外部图片失败: 响应体为空");
-            }
-
-            String ext = resolveImageExtByMimeType(response.header("Content-Type"));
-            String fileName = "ext_" + System.currentTimeMillis() + "_" + UUID.randomUUID().toString().replace("-", "") + "." + ext;
-            File targetFile = new File(downloadDir, fileName);
-            Files.write(targetFile.toPath(), body.bytes());
-
-            if (!targetFile.exists() || !targetFile.isFile()) {
-                throw new ServiceException("下载外部图片失败: 文件落盘异常");
-            }
-            return targetFile;
-        } catch (IOException e) {
-            log.error("下载外部图片失败, url:{}, err:{}", imageUrl, e.getMessage(), e);
-            throw new ServiceException("下载外部图片失败");
-        }
     }
     private void validateBalanceEnough(Long userId,BigDecimal cost) {
         FurnitureUserBalanceAccountDO account = furnitureUserBalanceAccountService.selectFurnitureUserBalanceAccountByUserId(userId);

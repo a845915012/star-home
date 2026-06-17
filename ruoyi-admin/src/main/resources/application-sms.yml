@@ -4,6 +4,6 @@ aliyun:
   sms:
     access-key-id: ${ALIYUN_SMS_ACCESS_KEY_ID:}
     access-key-secret: ${ALIYUN_SMS_ACCESS_KEY_SECRET:}
-    endpoint: ${ALIYUN_SMS_ENDPOINT:dysmsapi.aliyuncs.com}
-    sign-name: ${ALIYUN_SMS_SIGN_NAME:}
-    template-code: ${ALIYUN_SMS_TEMPLATE_CODE:}
+    endpoint: dysmsapi.aliyuncs.com
+    sign-name: 广州星链家科技发展
+    template-code: SMS_507650008

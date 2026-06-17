@@ -157,6 +157,14 @@ starhome:
     base-url: http://vimax-api:8000
     api-key: 753951abc
 
+aliyun:
+  oss:
+    access-key-id: ${ALIYUN_OSS_ACCESS_KEY_ID:}
+    access-key-secret: ${ALIYUN_OSS_ACCESS_KEY_SECRET:}
+    endpoint: oss-cn-guangzhou.aliyuncs.com
+    bucket: star-home
+    public-domain: https://star-home.oss-cn-guangzhou.aliyuncs.com
+
 # 支付宝配置 (基础配置，敏感信息在 application-alipay.yml 中配置)
 alipay:
   # 支付宝网关地址 (正式环境: https://openapi.alipay.com/gateway.do, 沙箱环境: https://openapi-sandbox.dl.alipaydev.com/gateway.do)

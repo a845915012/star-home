@@ -4,9 +4,9 @@ import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.github.pagehelper.PageHelper;
-import com.ruoyi.common.config.RuoYiConfig;
 import com.ruoyi.common.exception.ServiceException;
 import com.ruoyi.common.utils.SecurityUtils;
+import com.ruoyi.common.utils.file.OssUploadService;
 import com.ruoyi.starhome.domain.FurnitureConsumeConfigDO;
 import com.ruoyi.starhome.domain.FurnitureVideoGenerationTaskDO;
 import com.ruoyi.starhome.domain.FurnitureVideoTaskDO;
@@ -19,7 +19,6 @@ import com.ruoyi.starhome.service.IFurnitureConsumeConfigService;
 import com.ruoyi.starhome.service.IFurnitureUserBalanceAccountService;
 import com.ruoyi.starhome.service.IFurnitureVideoTaskService;
 import com.ruoyi.starhome.service.ITaskApiInvokeService;
-import com.ruoyi.starhome.util.StarhomeFileUrlUtils;
 import lombok.extern.slf4j.Slf4j;
 import okhttp3.OkHttpClient;
 import okhttp3.Request;
@@ -31,18 +30,14 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.io.File;
 import java.io.IOException;
 import java.math.BigDecimal;
-import java.nio.file.Files;
-import java.nio.file.Path;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.util.Collections;
 import java.util.Date;
 import java.util.List;
-import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
@@ -81,7 +76,7 @@ public class FurnitureVideoTaskServiceImpl implements IFurnitureVideoTaskService
     private ITaskApiInvokeService taskApiInvokeService;
 
     @Autowired
-    private StarhomeFileUrlUtils starhomeFileUrlUtils;
+    private OssUploadService ossUploadService;
 
 
     private BigDecimal resolveVideoConsumePrice(FurnitureVideoGenerationTaskDO header) {
@@ -179,14 +174,14 @@ public class FurnitureVideoTaskServiceImpl implements IFurnitureVideoTaskService
             }
 
             if ("completed".equalsIgnoreCase(vimaxStatus)) {
-                String localUrl = task.getVideoUrlLocal();
-                if (localUrl == null || localUrl.isBlank()) {
-                    localUrl = downloadVimaxVideoToProfile(taskId);
-                    update.setVideoUrlLocal(localUrl);
+                String remoteUrl = task.getVideoUrlRemote();
+                if (!isGeneratedVideoOssUrl(remoteUrl)) {
+                    remoteUrl = uploadVimaxVideoToOss(taskId);
                 }
-
-                String remoteUrl = finalizeHeaderIfNeeded(task, localUrl);
                 update.setVideoUrlRemote(remoteUrl);
+                update.setVideoUrlLocal(null);
+                String finalRemoteUrl = finalizeHeaderIfNeeded(task, remoteUrl);
+                update.setVideoUrlRemote(finalRemoteUrl);
                 update.setIsComplete(1);
                 update.setStatus("success");
                 furnitureVideoTaskMapper.updateById(update);
@@ -223,12 +218,7 @@ public class FurnitureVideoTaskServiceImpl implements IFurnitureVideoTaskService
         }
     }
 
-    private String downloadVimaxVideoToProfile(String jobId) {
-        File downloadDir = new File(RuoYiConfig.getProfile(), "download/video");
-        if (!downloadDir.exists() && !downloadDir.mkdirs()) {
-            throw new ServiceException("创建视频下载目录失败: " + downloadDir.getAbsolutePath());
-        }
-
+    private String uploadVimaxVideoToOss(String jobId) {
         String url = trimEndSlash(vimaxAgentBaseUrl) + "/api/jobs/" + jobId + "/download";
         Request.Builder builder = new Request.Builder().url(url).get();
         if (vimaxAgentApiKey != null && !vimaxAgentApiKey.isBlank()) {
@@ -246,19 +236,20 @@ public class FurnitureVideoTaskServiceImpl implements IFurnitureVideoTaskService
             if (body == null) {
                 throw new ServiceException("下载视频失败: 响应体为空");
             }
-            String fileName = "vimax_video_" + System.currentTimeMillis() + "_" + UUID.randomUUID().toString().replace("-", "") + ".mp4";
-            File targetFile = new File(downloadDir, fileName);
-            Files.write(targetFile.toPath(), body.bytes());
-            if (!targetFile.exists() || !targetFile.isFile() || targetFile.length() <= 0) {
-                throw new ServiceException("下载视频失败: 文件落盘异常");
+            String contentType = response.header("Content-Type");
+            long contentLength = body.contentLength();
+            try (okio.BufferedSource source = body.source();
+                 java.io.InputStream inputStream = source.inputStream()) {
+                return ossUploadService.uploadStream("video/generate", inputStream, contentLength, contentType, resolveVideoExtByMimeType(contentType)).getUrl();
+            } catch (IOException e) {
+                throw new ServiceException("上传视频到OSS失败: " + e.getMessage());
             }
-            return "/profile/download/video/" + fileName;
         } catch (IOException e) {
             throw new ServiceException("下载视频失败: " + e.getMessage());
         }
     }
 
-    private String finalizeHeaderIfNeeded(FurnitureVideoTaskDO task, String localVideoUrl) {
+    private String finalizeHeaderIfNeeded(FurnitureVideoTaskDO task, String remoteVideoUrl) {
         if (task == null || task.getGenerationTaskId() == null) {
             return null;
         }
@@ -270,22 +261,19 @@ public class FurnitureVideoTaskServiceImpl implements IFurnitureVideoTaskService
             return header.getRemoteFinalVideoUrl();
         }
 
-        File localFile = resolveProfilePathByLocalUrl(localVideoUrl).toFile();
-        String remoteUrl = starhomeFileUrlUtils.toPublicFileUrl(localFile);
-
         FurnitureVideoGenerationTaskDO updateHeader = new FurnitureVideoGenerationTaskDO();
         updateHeader.setId(header.getId());
         updateHeader.setCurrentTaskCount(1);
         updateHeader.setStatus("success");
-        updateHeader.setLocalFinalVideoUrl(localVideoUrl);
-        updateHeader.setRemoteFinalVideoUrl(remoteUrl);
+        updateHeader.setLocalFinalVideoUrl(null);
+        updateHeader.setRemoteFinalVideoUrl(remoteVideoUrl);
         updateHeader.setErrorMessage(null);
         updateHeader.setUpdateTime(LocalDateTime.now());
         furnitureVideoGenerationTaskMapper.updateById(updateHeader);
 
         furnitureUserBalanceAccountService.consume(header.getUserId(), resolveVideoConsumePrice(header));
-        taskApiInvokeService.completeDeferredVideoUsageRecord(header.getId(), remoteUrl, "SUCCESS");
-        return remoteUrl;
+        taskApiInvokeService.completeDeferredVideoUsageRecord(header.getId(), remoteVideoUrl, "SUCCESS");
+        return remoteVideoUrl;
     }
 
     private void markHeaderFailedIfNeeded(Long generationTaskId, String reason) {
@@ -365,14 +353,28 @@ public class FurnitureVideoTaskServiceImpl implements IFurnitureVideoTaskService
         return trimmed;
     }
 
-    private Path resolveProfilePathByLocalUrl(String localUrl) {
-        String normalized = localUrl == null ? "" : localUrl;
-        if (normalized.startsWith("/profile/")) {
-            normalized = normalized.substring("/profile/".length());
-        } else if (normalized.startsWith("profile/")) {
-            normalized = normalized.substring("profile/".length());
+    private boolean isGeneratedVideoOssUrl(String url) {
+        return url != null && url.contains("/video/generate/");
+    }
+
+    private String resolveVideoExtByMimeType(String mimeType) {
+        if (mimeType == null || mimeType.isBlank()) {
+            return "mp4";
         }
-        return new File(RuoYiConfig.getProfile(), normalized).toPath();
+        String normalized = mimeType.toLowerCase();
+        if (normalized.contains("quicktime")) {
+            return "mov";
+        }
+        if (normalized.contains("webm")) {
+            return "webm";
+        }
+        if (normalized.contains("x-matroska") || normalized.contains("matroska")) {
+            return "mkv";
+        }
+        if (normalized.contains("avi")) {
+            return "avi";
+        }
+        return "mp4";
     }
 
     private List<FurnitureVideoTaskPageItemResp> convertList(List<FurnitureVideoTaskDO> records) {
