@@ -1,0 +1,15 @@
+alipay:
+  # 应用ID
+  app-id: ${ALIPAY_APP_ID:}
+
+  # 应用私钥 - 填写你的真实私钥
+  private-key: ${ALIPAY_PRIVATE_KEY:}
+
+  # 支付宝公钥
+  alipay-public-key: ${ALIPAY_PUBLIC_KEY:}
+
+  # 同步回调地址
+  return-url: https://xinglianjia.cn/studio/index.html
+
+  # 异步通知地址（需公网可访问）
+  notify-url: https://xinglianjia.cn:6888/starhome/alipay/notify

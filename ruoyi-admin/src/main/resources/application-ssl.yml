@@ -1,0 +1,22 @@
+# SSL证书配置示例
+# 使用方法：
+# 1. 复制此文件并重命名为 application-ssl.yml
+# 2. 将JKS证书文件放到 resources 目录下（或指定绝对路径）
+# 3. 修改下方配置为你的实际值
+# 4. 启动时添加 ssl profile: --spring.profiles.active=local,druid,alipay,ssl
+#
+# 注意：application-ssl.yml 已加入 .gitignore，不会被提交到代码库
+
+server:
+  ssl:
+    # JKS证书文件路径
+    # 方式1: 放在resources目录下，使用classpath:
+    key-store: classpath:xinglianjia.cn.jks
+    # 方式2: 使用绝对路径
+    # key-store: /path/to/your/keystore.jks
+    
+    # JKS证书密码
+    key-store-password: ${SSL_KEY_STORE_PASSWORD:}
+    
+    # 证书别名（如果证书中有多个别名，需要指定）
+    # key-alias: tomcat
