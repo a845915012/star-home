@@ -3,7 +3,7 @@
 # 1. 复制此文件并重命名为 application-ssl.yml
 # 2. 将JKS证书文件放到 resources 目录下（或指定绝对路径）
 # 3. 修改下方配置为你的实际值
-# 4. 启动时添加 ssl profile: --spring.profiles.active=local,druid,alipay,ssl
+# 4. 启动时添加 ssl profile: --spring.profiles.active=local,druid,alipay,wechatpay,ssl
 #
 # 注意：application-ssl.yml 已加入 .gitignore，不会被提交到代码库
 

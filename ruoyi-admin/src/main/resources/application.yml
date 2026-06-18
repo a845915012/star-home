@@ -173,3 +173,10 @@ alipay:
   sign-type: RSA2
   # 字符编码
   charset: UTF-8
+
+# 微信支付配置 (基础配置，敏感信息在 application-wechatpay.yml 中配置)
+wechatpay:
+  # 微信支付 API 地址
+  server-url: https://api.mch.weixin.qq.com
+  # 微信公众号 API 地址
+  mp-api-base-url: https://api.weixin.qq.com

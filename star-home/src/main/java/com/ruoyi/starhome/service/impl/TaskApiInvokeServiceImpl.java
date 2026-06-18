@@ -1,6 +1,8 @@
 package com.ruoyi.starhome.service.impl;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.fasterxml.jackson.core.JsonFactory;
+import com.fasterxml.jackson.core.StreamReadConstraints;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ArrayNode;
@@ -45,7 +47,7 @@ import java.util.concurrent.TimeUnit;
 @Slf4j
 public class TaskApiInvokeServiceImpl implements ITaskApiInvokeService {
 
-    private final ObjectMapper mapper = new ObjectMapper();
+    private final ObjectMapper mapper = buildObjectMapper();
     private final OkHttpClient client = new OkHttpClient.Builder()
             .connectTimeout(5, TimeUnit.SECONDS)
             .readTimeout(180, TimeUnit.SECONDS)
@@ -92,6 +94,13 @@ public class TaskApiInvokeServiceImpl implements ITaskApiInvokeService {
     private String serverUrl;
     @Value("${starhome.port}")
     private String serverPort;
+
+    private ObjectMapper buildObjectMapper() {
+        JsonFactory factory = JsonFactory.builder()
+                .streamReadConstraints(StreamReadConstraints.builder().maxStringLength(40_000_000).build())
+                .build();
+        return new ObjectMapper(factory);
+    }
 
     @Override
     @Transactional(rollbackFor = Exception.class)
@@ -488,7 +497,7 @@ public class TaskApiInvokeServiceImpl implements ITaskApiInvokeService {
             int dataIndex = candidate.indexOf("data:image");
             if (dataIndex >= 0) {
                 candidate = candidate.substring(dataIndex);
-                int cut = firstPositiveIndex(candidate.indexOf(')'), candidate.indexOf(' '), candidate.indexOf('\n'), candidate.indexOf('\r'));
+                int cut = firstPositiveIndex(candidate.indexOf('"'), candidate.indexOf('\''), candidate.indexOf(')'), candidate.indexOf(' '), candidate.indexOf('\n'), candidate.indexOf('\r'));
                 if (cut > 0) {
                     candidate = candidate.substring(0, cut);
                 }
@@ -555,7 +564,13 @@ public class TaskApiInvokeServiceImpl implements ITaskApiInvokeService {
 
         byte[] bytes;
         try {
-            String clean = parsed.base64Data.replace("\n", "").replace("\r", "").trim();
+            String clean = parsed.base64Data
+                    .replace("\\n", "")
+                    .replace("\\r", "")
+                    .replace("\\/", "/")
+                    .replace("\n", "")
+                    .replace("\r", "")
+                    .trim();
             bytes = Base64.getDecoder().decode(clean.getBytes(StandardCharsets.UTF_8));
         } catch (IllegalArgumentException e) {
             throw new ServiceException("Gemini返回的base64解析失败");
@@ -675,7 +690,12 @@ public class TaskApiInvokeServiceImpl implements ITaskApiInvokeService {
                 throw new IOException("调用失败: 响应体为空");
             }
             String raw = responseBody.string();
-            JsonNode root = mapper.readTree(raw);
+            JsonNode root;
+            try {
+                root = mapper.readTree(raw);
+            } catch (Exception ex) {
+                return raw;
+            }
             if (usageHolder != null && usageHolder.length > 0) {
                 JsonNode usageNode = toUsageNodeFromChatCompletions(root.path("usage"));
                 usageHolder[0] = usageNode.toString();
