@@ -31,6 +31,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.io.IOException;
+import java.net.UnknownHostException;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
@@ -214,6 +215,9 @@ public class FurnitureVideoTaskServiceImpl implements IFurnitureVideoTaskService
             }
             return responseText;
         } catch (IOException e) {
+            if (e instanceof UnknownHostException) {
+                throw new ServiceException("无法解析 vimax-agent 主机，请检查 starhome.vimax-agent.base-url 配置: " + vimaxAgentBaseUrl + "，原因: " + e.getMessage());
+            }
             throw new ServiceException("查询视频任务进度异常: " + e.getMessage());
         }
     }
@@ -245,6 +249,9 @@ public class FurnitureVideoTaskServiceImpl implements IFurnitureVideoTaskService
                 throw new ServiceException("上传视频到OSS失败: " + e.getMessage());
             }
         } catch (IOException e) {
+            if (e instanceof UnknownHostException) {
+                throw new ServiceException("无法解析 vimax-agent 主机，请检查 starhome.vimax-agent.base-url 配置: " + vimaxAgentBaseUrl + "，原因: " + e.getMessage());
+            }
             throw new ServiceException("下载视频失败: " + e.getMessage());
         }
     }

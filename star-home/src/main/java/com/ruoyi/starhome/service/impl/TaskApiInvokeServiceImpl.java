@@ -30,6 +30,7 @@ import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
 import java.io.File;
 import java.io.IOException;
+import java.net.UnknownHostException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
 import java.math.BigDecimal;
@@ -354,6 +355,8 @@ public class TaskApiInvokeServiceImpl implements ITaskApiInvokeService {
                 throw new IOException("vimax-agent 创建任务失败: 响应体为空");
             }
             return responseText;
+        } catch (UnknownHostException e) {
+            throw new IOException("无法解析 vimax-agent 主机，请检查 starhome.vimax-agent.base-url 配置: " + vimaxAgentBaseUrl + "，原因: " + e.getMessage(), e);
         }
     }
 
