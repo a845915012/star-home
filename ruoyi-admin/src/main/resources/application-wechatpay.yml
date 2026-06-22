@@ -7,3 +7,7 @@ wechatpay:
   platform-public-key: ${WECHAT_PAY_PLATFORM_PUBLIC_KEY:}
   api-v3-key: ${WECHAT_PAY_API_V3_KEY:}
   notify-url: ${WECHAT_PAY_NOTIFY_URL:https://xinglianjia.cn:6888/starhome/wechat/pay/notify}
+  # 微信模板消息ID（需在微信公众号后台申请模板消息后填写）
+  video-success-template-id: ${WECHAT_VIDEO_SUCCESS_TEMPLATE_ID:}
+  video-fail-template-id: ${WECHAT_VIDEO_FAIL_TEMPLATE_ID:}
+  recharge-success-template-id: ${WECHAT_RECHARGE_SUCCESS_TEMPLATE_ID:}

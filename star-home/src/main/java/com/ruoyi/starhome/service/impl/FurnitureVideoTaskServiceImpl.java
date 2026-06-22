@@ -19,6 +19,7 @@ import com.ruoyi.starhome.service.IFurnitureConsumeConfigService;
 import com.ruoyi.starhome.service.IFurnitureUserBalanceAccountService;
 import com.ruoyi.starhome.service.IFurnitureVideoTaskService;
 import com.ruoyi.starhome.service.ITaskApiInvokeService;
+import com.ruoyi.starhome.service.IWechatNotifyService;
 import lombok.extern.slf4j.Slf4j;
 import okhttp3.OkHttpClient;
 import okhttp3.Request;
@@ -78,6 +79,9 @@ public class FurnitureVideoTaskServiceImpl implements IFurnitureVideoTaskService
 
     @Autowired
     private OssUploadService ossUploadService;
+
+    @Autowired
+    private IWechatNotifyService wechatNotifyService;
 
 
     private BigDecimal resolveVideoConsumePrice(FurnitureVideoGenerationTaskDO header) {
@@ -169,8 +173,22 @@ public class FurnitureVideoTaskServiceImpl implements IFurnitureVideoTaskService
             if ("failed".equalsIgnoreCase(vimaxStatus)) {
                 update.setIsComplete(1);
                 furnitureVideoTaskMapper.updateById(update);
-                markHeaderFailedIfNeeded(task.getGenerationTaskId(), error == null || error.isBlank() ? "任务失败" : error);
+                String failReason = error == null || error.isBlank() ? "任务失败" : error;
+                markHeaderFailedIfNeeded(task.getGenerationTaskId(), failReason);
                 taskApiInvokeService.completeDeferredVideoUsageRecord(task.getGenerationTaskId(), null, "FAIL");
+
+                // 发送微信模板消息通知：视频生成失败
+                try {
+                    wechatNotifyService.notifyVideoFailed(
+                            task.getUserId(),
+                            task.getGenerationTaskId(),
+                            failReason
+                    );
+                } catch (Exception e) {
+                    log.error("发送视频生成失败微信通知失败, generationTaskId={}, userId={}",
+                            task.getGenerationTaskId(), task.getUserId(), e);
+                }
+
                 return responseText;
             }
 
@@ -186,6 +204,19 @@ public class FurnitureVideoTaskServiceImpl implements IFurnitureVideoTaskService
                 update.setIsComplete(1);
                 update.setStatus("success");
                 furnitureVideoTaskMapper.updateById(update);
+
+                // 发送微信模板消息通知：视频生成成功
+                try {
+                    wechatNotifyService.notifyVideoSuccess(
+                            task.getUserId(),
+                            task.getGenerationTaskId(),
+                            finalRemoteUrl
+                    );
+                } catch (Exception e) {
+                    log.error("发送视频生成成功微信通知失败, generationTaskId={}, userId={}",
+                            task.getGenerationTaskId(), task.getUserId(), e);
+                }
+
                 return responseText;
             }
 

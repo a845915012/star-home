@@ -61,4 +61,20 @@ public class WechatPayConfig {
      * 异步通知地址
      */
     private String notifyUrl;
+
+    /**
+     * 模板消息ID - 视频生成成功通知
+     * 需在微信公众号后台「广告与服务 → 模板消息」中申请
+     */
+    private String videoSuccessTemplateId;
+
+    /**
+     * 模板消息ID - 视频生成失败通知
+     */
+    private String videoFailTemplateId;
+
+    /**
+     * 模板消息ID - 充值成功通知（可选）
+     */
+    private String rechargeSuccessTemplateId;
 }

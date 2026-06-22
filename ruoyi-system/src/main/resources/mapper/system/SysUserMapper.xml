@@ -18,6 +18,7 @@ PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
         <result property="isVip"         column="is_vip"          />
         <result property="vipBeginTime"  column="vip_begin_time"  />
         <result property="vipExpireTime" column="vip_expire_time" />
+        <result property="wxOpenid"      column="wx_openid"       />
         <result property="delFlag"       column="del_flag"        />
         <result property="loginIp"       column="login_ip"        />
         <result property="loginDate"     column="login_date"      />
@@ -51,7 +52,7 @@ PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
     </resultMap>
 	
 	<sql id="selectUserVo">
-        select u.user_id, u.dept_id, u.user_name, u.nick_name, u.email, u.avatar, u.phonenumber, u.password, u.sex, u.status, u.is_vip, u.vip_begin_time, u.vip_expire_time, u.del_flag, u.login_ip, u.login_date, u.pwd_update_date, u.create_by, u.create_time, u.remark, 
+        select u.user_id, u.dept_id, u.user_name, u.nick_name, u.email, u.avatar, u.phonenumber, u.password, u.sex, u.status, u.is_vip, u.vip_begin_time, u.vip_expire_time, u.wx_openid, u.del_flag, u.login_ip, u.login_date, u.pwd_update_date, u.create_by, u.create_time, u.remark, 
         d.dept_id, d.parent_id, d.ancestors, d.dept_name, d.order_num, d.leader, d.status as dept_status,
         r.role_id, r.role_name, r.role_key, r.role_sort, r.data_scope, r.status as role_status
         from sys_user u
@@ -60,8 +61,8 @@ PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
 		    left join sys_role r on r.role_id = ur.role_id
     </sql>
     
-    <select id="selectUserList" parameterType="SysUser" resultMap="SysUserResult">
-		select u.user_id, u.dept_id, u.nick_name, u.user_name, u.email, u.avatar, u.phonenumber, u.sex, u.status, u.is_vip, u.vip_begin_time, u.vip_expire_time, u.del_flag, u.login_ip, u.login_date, u.create_by, u.create_time, u.remark, d.dept_name, d.leader from sys_user u
+	<select id="selectUserList" parameterType="SysUser" resultMap="SysUserResult">
+		select u.user_id, u.dept_id, u.nick_name, u.user_name, u.email, u.avatar, u.phonenumber, u.sex, u.status, u.is_vip, u.vip_begin_time, u.vip_expire_time, u.wx_openid, u.del_flag, u.login_ip, u.login_date, u.create_by, u.create_time, u.remark, d.dept_name, d.leader from sys_user u
 		left join sys_dept d on u.dept_id = d.dept_id
 		where u.del_flag = '0'
 		<if test="userId != null and userId != 0">
@@ -161,6 +162,7 @@ PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
 			<if test="isVip != null">is_vip,</if>
 			<if test="vipBeginTime != null">vip_begin_time,</if>
 			<if test="vipExpireTime != null">vip_expire_time,</if>
+			<if test="wxOpenid != null and wxOpenid != ''">wx_openid,</if>
  			<if test="pwdUpdateDate != null">pwd_update_date,</if>
  			<if test="createBy != null and createBy != ''">create_by,</if>
  			<if test="remark != null and remark != ''">remark,</if>
@@ -179,6 +181,7 @@ PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
 			<if test="isVip != null">#{isVip},</if>
 			<if test="vipBeginTime != null">#{vipBeginTime},</if>
 			<if test="vipExpireTime != null">#{vipExpireTime},</if>
+			<if test="wxOpenid != null and wxOpenid != ''">#{wxOpenid},</if>
  			<if test="pwdUpdateDate != null">#{pwdUpdateDate},</if>
  			<if test="createBy != null and createBy != ''">#{createBy},</if>
  			<if test="remark != null and remark != ''">#{remark},</if>
@@ -200,6 +203,7 @@ PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
 			<if test="isVip != null">is_vip = #{isVip},</if>
 			<if test="vipBeginTime != null">vip_begin_time = #{vipBeginTime},</if>
 			<if test="vipExpireTime != null">vip_expire_time = #{vipExpireTime},</if>
+			<if test="wxOpenid != null">wx_openid = #{wxOpenid},</if>
  			<if test="loginIp != null and loginIp != ''">login_ip = #{loginIp},</if>
  			<if test="loginDate != null">login_date = #{loginDate},</if>
  			<if test="updateBy != null and updateBy != ''">update_by = #{updateBy},</if>
