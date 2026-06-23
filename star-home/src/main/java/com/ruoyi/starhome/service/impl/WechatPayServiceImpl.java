@@ -83,17 +83,19 @@ public class WechatPayServiceImpl implements IWechatPayService {
     @Transactional(rollbackFor = Exception.class)
     public WechatPayOrderResponse createJsapiRechargeOrder(WechatPayRechargeRequest request) {
         ensureWechatPayConfig();
-        if (StringUtils.isEmpty(request.getOpenId())) {
+        Long userId = SecurityFrameworkUtils.getLoginUserId();
+        SysUser sysUser = sysUserMapper.selectUserById(userId);
+        if (StringUtils.isEmpty(sysUser.getWxOpenid())) {
             throw new ServiceException("JSAPI支付缺少openId");
         }
 
-        Long userId = SecurityFrameworkUtils.getLoginUserId();
+
         RechargeInfo rechargeInfo = validateRequestAndBuildRechargeInfo(request);
         FurnitureRechargeOrderDO order = createOrder(userId, rechargeInfo, request);
 
         Map<String, Object> payload = buildUnifiedPayRequest(order);
         Map<String, String> payer = new HashMap<>();
-        payer.put("openid", request.getOpenId());
+        payer.put("openid", sysUser.getWxOpenid());
         payload.put("payer", payer);
 
         JsonNode response = executeWechatPayRequest("POST", "/v3/pay/transactions/jsapi", payload);

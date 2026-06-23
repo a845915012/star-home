@@ -86,14 +86,34 @@ public final class WechatPayCryptoUtils {
 
     private static PrivateKey loadPrivateKey(String pemPrivateKey) throws Exception {
         String normalized = normalizeKey(pemPrivateKey, PRIVATE_KEY_BEGIN, PRIVATE_KEY_END);
-        byte[] decoded = Base64.getDecoder().decode(normalized);
+        if (normalized.isEmpty()) {
+            throw new IllegalArgumentException("私钥内容为空，请检查 WECHAT_PAY_PRIVATE_KEY 配置");
+        }
+        byte[] decoded;
+        try {
+            decoded = Base64.getDecoder().decode(normalized);
+        } catch (IllegalArgumentException e) {
+            throw new IllegalArgumentException("私钥 Base64 解码失败，请检查私钥内容是否完整、格式是否正确。"
+                    + "私钥开头应为 -----BEGIN PRIVATE KEY-----，当前内容: "
+                    + normalized);
+        }
         PKCS8EncodedKeySpec keySpec = new PKCS8EncodedKeySpec(decoded);
         return KeyFactory.getInstance("RSA").generatePrivate(keySpec);
     }
 
     private static PublicKey loadPublicKey(String pemPublicKey) throws Exception {
         String normalized = normalizeKey(pemPublicKey, PUBLIC_KEY_BEGIN, PUBLIC_KEY_END);
-        byte[] decoded = Base64.getDecoder().decode(normalized);
+        if (normalized.isEmpty()) {
+            throw new IllegalArgumentException("公钥内容为空，请检查 WECHAT_PAY_PLATFORM_PUBLIC_KEY 配置");
+        }
+        byte[] decoded;
+        try {
+            decoded = Base64.getDecoder().decode(normalized);
+        } catch (IllegalArgumentException e) {
+            throw new IllegalArgumentException("公钥 Base64 解码失败，请检查公钥内容是否完整、格式是否正确。"
+                    + "公钥开头应为 -----BEGIN PUBLIC KEY-----，当前内容: "
+                    + normalized);
+        }
         X509EncodedKeySpec keySpec = new X509EncodedKeySpec(decoded);
         return KeyFactory.getInstance("RSA").generatePublic(keySpec);
     }
@@ -102,9 +122,14 @@ public final class WechatPayCryptoUtils {
         if (content == null || content.isBlank()) {
             throw new ServiceException("微信支付密钥未配置");
         }
-        return content.replace("\\n", "\n")
-                .replace(begin, "")
-                .replace(end, "")
-                .replaceAll("\\s+", "");
+        // 统一处理：先将字面量 \n 和真实换行符统一处理
+        String normalized = content.replace("\\n", "\n");
+        // 去除 PEM 头尾标记（忽略大小写，并去除标记所在行）
+        normalized = normalized
+                .replaceAll("(?i)-{5}BEGIN\\s+[A-Z\\s]+-{5}", "")
+                .replaceAll("(?i)-{5}END\\s+[A-Z\\s]+-{5}", "");
+        // 去除所有空白字符（包括换行、回车、空格、制表符等），得到纯 Base64 内容
+        normalized = normalized.replaceAll("\\s+", "");
+        return normalized;
     }
 }

@@ -1,5 +1,7 @@
 wechatpay:
+  # 公众号/小程序 appId（JSAPI支付、JSSDK签名、微信授权登录共用）
   app-id: ${WECHAT_PAY_APP_ID:}
+  # 公众号/小程序 appSecret（JSSDK签名、微信授权登录需要）
   app-secret: ${WECHAT_PAY_APP_SECRET:}
   mch-id: ${WECHAT_PAY_MCH_ID:}
   mch-serial-no: ${WECHAT_PAY_MCH_SERIAL_NO:}
@@ -11,3 +13,6 @@ wechatpay:
   video-success-template-id: ${WECHAT_VIDEO_SUCCESS_TEMPLATE_ID:}
   video-fail-template-id: ${WECHAT_VIDEO_FAIL_TEMPLATE_ID:}
   recharge-success-template-id: ${WECHAT_RECHARGE_SUCCESS_TEMPLATE_ID:}
+  # 小程序独立 appId（如果小程序和公众号不是同一个应用，在此单独配置）
+  mini-app-id: ${WECHAT_MINI_APP_ID:}
+  mini-app-secret: ${WECHAT_MINI_APP_SECRET:}

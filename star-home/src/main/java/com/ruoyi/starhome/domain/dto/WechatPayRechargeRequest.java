@@ -24,6 +24,4 @@ public class WechatPayRechargeRequest {
     @Schema(description = "订单描述", example = "余额充值")
     private String body;
 
-    @Schema(description = "用户微信 openId，仅 JSAPI 支付必填", example = "oUpF8uMuAJO_M2pxb1Q9zNjWeS6o")
-    private String openId;
 }
