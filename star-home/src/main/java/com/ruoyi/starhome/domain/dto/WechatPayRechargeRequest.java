@@ -24,4 +24,7 @@ public class WechatPayRechargeRequest {
     @Schema(description = "订单描述", example = "余额充值")
     private String body;
 
+    @Schema(description = "客户端IP（H5支付必传）", example = "127.0.0.1")
+    private String clientIp;
+
 }

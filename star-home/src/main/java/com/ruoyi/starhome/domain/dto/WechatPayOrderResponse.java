@@ -36,4 +36,7 @@ public class WechatPayOrderResponse {
 
     @Schema(description = "Native 支付二维码链接", example = "weixin://wxpay/bizpayurl?pr=abc123")
     private String codeUrl;
+
+    @Schema(description = "H5 支付跳转链接", example = "https://wx.tenpay.com/cgi-bin/mmpayweb-bin/checkmweb?prepay_id=wx123456&package=abc")
+    private String h5Url;
 }

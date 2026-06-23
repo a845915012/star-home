@@ -126,6 +126,35 @@ public class WechatPayServiceImpl implements IWechatPayService {
 
     @Override
     @Transactional(rollbackFor = Exception.class)
+    public WechatPayOrderResponse createH5RechargeOrder(WechatPayRechargeRequest request) {
+        ensureWechatPayConfig();
+        Long userId = SecurityFrameworkUtils.getLoginUserId();
+        RechargeInfo rechargeInfo = validateRequestAndBuildRechargeInfo(request);
+        FurnitureRechargeOrderDO order = createOrder(userId, rechargeInfo, request);
+
+        Map<String, Object> payload = buildUnifiedPayRequest(order);
+        Map<String, Object> sceneInfo = new HashMap<>();
+        Map<String, Object> h5Info = new HashMap<>();
+        h5Info.put("type", "Wap");
+        sceneInfo.put("payer_client_ip", request.getClientIp());
+        sceneInfo.put("h5_info", h5Info);
+        payload.put("scene_info", sceneInfo);
+
+        JsonNode response = executeWechatPayRequest("POST", "/v3/pay/transactions/h5", payload);
+        String prepayId = optionalText(response, "prepay_id");
+        String h5Url = requiredText(response, "h5_url", "微信H5下单失败");
+
+        WechatPayOrderResponse result = new WechatPayOrderResponse();
+        result.setOrderNo(order.getOrderNo());
+        result.setAppId(wechatPayConfig.getAppId());
+        result.setPrepayId(prepayId);
+        result.setH5Url(h5Url);
+        result.setSignType("RSA");
+        return result;
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
     public String handleNotify(String requestBody, String timestamp, String nonce, String serial, String signature) {
         log.info("收到微信支付异步通知, serial={}", serial);
 
@@ -171,7 +200,11 @@ public class WechatPayServiceImpl implements IWechatPayService {
                 order.setNotifyTime(new Date());
                 order.setNotifyContent(requestBody);
                 order.setUpdateTime(new Date());
-                rechargeOrderMapper.updateById(order);
+                int rows = rechargeOrderMapper.updatePaySuccessIfNotAlready(order);
+                if (rows == 0) {
+                    log.warn("微信支付通知重复处理, orderNo={}", orderNo);
+                    return SUCCESS_NOTIFY_RESPONSE;
+                }
 
                 balanceAccountService.recharge(order.getUserId(), getProvideAmountOrPayAmount(order));
                 updateUserVipStatusIfNeeded(order);
@@ -230,7 +263,10 @@ public class WechatPayServiceImpl implements IWechatPayService {
             order.setTransactionId(optionalText(response, "transaction_id"));
             order.setPayTime(parseWechatTime(optionalText(response, "success_time")));
             order.setUpdateTime(new Date());
-            rechargeOrderMapper.updateById(order);
+            int rows = rechargeOrderMapper.updatePaySuccessIfNotAlready(order);
+            if (rows == 0) {
+                return order;
+            }
 
             balanceAccountService.recharge(order.getUserId(), getProvideAmountOrPayAmount(order));
             updateUserVipStatusIfNeeded(order);

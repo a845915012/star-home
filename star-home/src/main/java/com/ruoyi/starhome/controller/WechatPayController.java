@@ -52,6 +52,7 @@ public class WechatPayController extends BaseController {
     @PostMapping("/recharge/jsapi")
     public AjaxResult rechargeJsapi(@RequestBody WechatPayRechargeRequest request) {
         WechatPayOrderResponse response = wechatPayService.createJsapiRechargeOrder(request);
+        logger.info("rechargeJsapi response : {}", response);
         return success(response);
     }
 
@@ -70,6 +71,24 @@ public class WechatPayController extends BaseController {
     @PostMapping("/recharge/native")
     public AjaxResult rechargeNative(@RequestBody WechatPayRechargeRequest request) {
         WechatPayOrderResponse response = wechatPayService.createNativeRechargeOrder(request);
+        return success(response);
+    }
+
+    @Operation(summary = "H5充值下单", description = "创建微信H5充值订单，返回跳转链接 h5Url，在微信外浏览器中打开后跳转微信完成支付")
+    @io.swagger.v3.oas.annotations.parameters.RequestBody(
+            required = true,
+            description = "充值请求参数，packageId 和 amount 二选一；H5支付需要传 clientIp",
+            content = @Content(
+                    schema = @Schema(implementation = WechatPayRechargeRequest.class),
+                    examples = {
+                            @ExampleObject(name = "套餐充值", value = "{\"packageId\":1,\"subject\":\"账户充值\",\"clientIp\":\"127.0.0.1\"}"),
+                            @ExampleObject(name = "自定义充值", value = "{\"amount\":100.00,\"subject\":\"账户充值\",\"clientIp\":\"127.0.0.1\"}")
+                    }
+            )
+    )
+    @PostMapping("/recharge/h5")
+    public AjaxResult rechargeH5(@RequestBody WechatPayRechargeRequest request) {
+        WechatPayOrderResponse response = wechatPayService.createH5RechargeOrder(request);
         return success(response);
     }
 

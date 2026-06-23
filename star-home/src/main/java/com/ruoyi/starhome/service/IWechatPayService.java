@@ -21,6 +21,11 @@ public interface IWechatPayService {
     WechatPayOrderResponse createNativeRechargeOrder(WechatPayRechargeRequest request);
 
     /**
+     * 创建 H5 充值订单
+     */
+    WechatPayOrderResponse createH5RechargeOrder(WechatPayRechargeRequest request);
+
+    /**
      * 处理微信支付通知
      */
     String handleNotify(String requestBody, String timestamp, String nonce, String serial, String signature);

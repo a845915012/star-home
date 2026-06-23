@@ -192,7 +192,11 @@ public class AlipayServiceImpl implements IAlipayService {
                 order.setNotifyTime(new Date());
                 order.setNotifyContent(objectMapper.writeValueAsString(params));
                 order.setUpdateTime(new Date());
-                rechargeOrderMapper.updateById(order);
+                int rows = rechargeOrderMapper.updatePaySuccessIfNotAlready(order);
+                if (rows == 0) {
+                    log.warn("支付宝通知重复处理, orderNo={}", orderNo);
+                    return "success";
+                }
 
                 // 调用充值接口增加用户余额
                 balanceAccountService.recharge(order.getUserId(), getProvideAmountOrPayAmount(order));
@@ -259,7 +263,10 @@ public class AlipayServiceImpl implements IAlipayService {
                     order.setTransactionId(response.getTradeNo());
                     order.setPayTime(new Date());
                     order.setUpdateTime(new Date());
-                    rechargeOrderMapper.updateById(order);
+                    int rows = rechargeOrderMapper.updatePaySuccessIfNotAlready(order);
+                    if (rows == 0) {
+                        return order;
+                    }
 
                     // 调用充值接口
                     balanceAccountService.recharge(order.getUserId(), getProvideAmountOrPayAmount(order));

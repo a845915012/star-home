@@ -44,9 +44,7 @@ public class WechatAuthController extends BaseController {
     @Operation(summary = "小程序 code2Session", description = "小程序端通过 wx.login() 获取的临时 code 换取 openid 和 session_key")
     @PostMapping("/code2session")
     public AjaxResult code2Session(@Valid @RequestBody WechatAuthRequest request) {
-        logger.info("code2session request:{}",request);
         WechatCode2SessionResponse response = wechatAuthService.code2Session(request.getCode());
-        logger.info("code2session response:{}",response);
         return success(response);
     }
 
@@ -63,9 +61,7 @@ public class WechatAuthController extends BaseController {
     @Operation(summary = "公众号网页授权", description = "公众号网页授权回调后，通过 code 换取 access_token 和 openid")
     @PostMapping("/oauth2")
     public AjaxResult oauth2(@Valid @RequestBody WechatAuthRequest request) {
-        logger.info("oauth2 request:{}",request);
         WechatCode2SessionResponse response = wechatAuthService.oauth2AccessToken(request.getCode());
-        logger.info("oauth2 response:{}",response);
         return success(response);
     }
 }
