@@ -7,6 +7,7 @@ import com.ruoyi.starhome.domain.FurnitureAiCallRecordsDO;
 import com.ruoyi.starhome.domain.dto.FurnitureAiCallRecordsOverview;
 import com.ruoyi.starhome.domain.dto.FurnitureAiCallRecordsPageResp;
 import com.ruoyi.starhome.domain.dto.FurnitureAiCallRecordsSummary;
+import com.ruoyi.starhome.domain.vo.FurnitureAiCallRecordsVO;
 import com.ruoyi.starhome.mapper.FurnitureAiCallRecordsMapper;
 import com.ruoyi.starhome.service.IFurnitureAiCallRecordsService;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -40,11 +41,10 @@ public class FurnitureAiCallRecordsServiceImpl implements IFurnitureAiCallRecord
 
     @Override
     public FurnitureAiCallRecordsPageResp selectFurnitureAiCallRecordsList(Long userId, String timeRange, Integer pageNum, Integer pageSize) {
-        LambdaQueryWrapper<FurnitureAiCallRecordsDO> query = createBaseQuery(userId, timeRange);
-
+        Date startTime = getStartTime(timeRange);
         PageHelper.startPage(pageNum, pageSize);
-        List<FurnitureAiCallRecordsDO> records = furnitureAiCallRecordsMapper.selectList(query.orderByDesc(FurnitureAiCallRecordsDO::getId));
-        PageInfo<FurnitureAiCallRecordsDO> pageInfo = new PageInfo<>(records);
+        List<FurnitureAiCallRecordsVO> records = furnitureAiCallRecordsMapper.selectPageWithUser(userId, startTime);
+        PageInfo<FurnitureAiCallRecordsVO> pageInfo = new PageInfo<>(records);
 
         FurnitureAiCallRecordsPageResp resp = new FurnitureAiCallRecordsPageResp();
         resp.setList(records);
@@ -57,13 +57,9 @@ public class FurnitureAiCallRecordsServiceImpl implements IFurnitureAiCallRecord
 
     @Override
     public FurnitureAiCallRecordsPageResp selectFurnitureAiCallRecordsHistoryPage(Long userId, Integer pageNum, Integer pageSize) {
-        LambdaQueryWrapper<FurnitureAiCallRecordsDO> query = new LambdaQueryWrapper<FurnitureAiCallRecordsDO>()
-                .eq(userId != null, FurnitureAiCallRecordsDO::getUserId, userId)
-                .orderByDesc(FurnitureAiCallRecordsDO::getId);
-
         PageHelper.startPage(pageNum, pageSize);
-        List<FurnitureAiCallRecordsDO> records = furnitureAiCallRecordsMapper.selectList(query);
-        PageInfo<FurnitureAiCallRecordsDO> pageInfo = new PageInfo<>(records);
+        List<FurnitureAiCallRecordsVO> records = furnitureAiCallRecordsMapper.selectPageWithUser(userId, null);
+        PageInfo<FurnitureAiCallRecordsVO> pageInfo = new PageInfo<>(records);
 
         FurnitureAiCallRecordsPageResp resp = new FurnitureAiCallRecordsPageResp();
         resp.setList(records);

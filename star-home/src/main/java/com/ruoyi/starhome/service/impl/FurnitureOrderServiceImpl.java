@@ -6,6 +6,7 @@ import com.ruoyi.starhome.domain.FurnitureMemberPackageDO;
 import com.ruoyi.starhome.domain.FurnitureOrderDO;
 import com.ruoyi.starhome.domain.FurnitureUserPackageRightsDO;
 import com.ruoyi.starhome.domain.dto.CreateOrderRequest;
+import com.ruoyi.starhome.domain.vo.FurnitureOrderVO;
 import com.ruoyi.starhome.mapper.FurnitureMemberPackageMapper;
 import com.ruoyi.starhome.mapper.FurnitureOrderMapper;
 import com.ruoyi.starhome.mapper.FurnitureUserPackageRightsMapper;
@@ -36,13 +37,12 @@ public class FurnitureOrderServiceImpl implements IFurnitureOrderService {
     }
 
     @Override
-    public List<FurnitureOrderDO> selectFurnitureOrderList(FurnitureOrderDO furnitureOrder) {
-        return furnitureOrderMapper.selectList(new LambdaQueryWrapper<FurnitureOrderDO>()
-                .eq(furnitureOrder.getOrderNo() != null && !furnitureOrder.getOrderNo().isEmpty(), FurnitureOrderDO::getOrderNo, furnitureOrder.getOrderNo())
-                .eq(furnitureOrder.getUserId() != null, FurnitureOrderDO::getUserId, furnitureOrder.getUserId())
-                .eq(furnitureOrder.getPackageId() != null, FurnitureOrderDO::getPackageId, furnitureOrder.getPackageId())
-                .eq(furnitureOrder.getPayStatus() != null, FurnitureOrderDO::getPayStatus, furnitureOrder.getPayStatus())
-                .orderByDesc(FurnitureOrderDO::getId));
+    public List<FurnitureOrderVO> selectFurnitureOrderList(FurnitureOrderDO furnitureOrder) {
+        return furnitureOrderMapper.selectOrderListWithUser(
+                furnitureOrder.getOrderNo(),
+                furnitureOrder.getUserId(),
+                furnitureOrder.getPackageId(),
+                furnitureOrder.getPayStatus());
     }
 
     @Override

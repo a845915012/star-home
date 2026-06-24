@@ -7,6 +7,7 @@ import com.ruoyi.common.core.domain.R;
 import com.ruoyi.common.enums.BusinessType;
 import com.ruoyi.starhome.domain.FurnitureOrderDO;
 import com.ruoyi.starhome.domain.dto.CreateOrderRequest;
+import com.ruoyi.starhome.domain.vo.FurnitureOrderVO;
 import com.ruoyi.starhome.service.IFurnitureOrderService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
@@ -44,9 +45,9 @@ public class FurnitureOrderController extends BaseController {
             @Parameter(name = "pageSize", description = "每页条数", example = "10")
     })
     @GetMapping("/list")
-    public PageResult<FurnitureOrderDO> list(FurnitureOrderDO furnitureOrder) {
+    public PageResult<FurnitureOrderVO> list(FurnitureOrderDO furnitureOrder) {
         startPage();
-        List<FurnitureOrderDO> list = furnitureOrderService.selectFurnitureOrderList(furnitureOrder);
+        List<FurnitureOrderVO> list = furnitureOrderService.selectFurnitureOrderList(furnitureOrder);
         return getPageResult(list);
     }
 
