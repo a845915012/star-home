@@ -31,6 +31,9 @@ public class FurnitureRechargePackageDO implements Serializable {
 
     private Integer vipDay;
 
+    /** 会员等级（1-普通会员 2-高级会员等） */
+    private Integer vipLevel;
+
     private String status;
 
     private String remark;

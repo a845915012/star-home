@@ -1,9 +1,8 @@
 package com.ruoyi.starhome.controller;
 
 import com.ruoyi.common.annotation.Log;
-import com.ruoyi.common.core.domain.AjaxResult;
+import com.ruoyi.common.core.domain.R;
 import com.ruoyi.common.enums.BusinessType;
-import com.ruoyi.framework.security.util.SecurityFrameworkUtils;
 import com.ruoyi.starhome.domain.dto.CopyGenerateRequest;
 import com.ruoyi.starhome.domain.dto.GenerateSceneRequest;
 import com.ruoyi.starhome.domain.dto.ImageGenerateVideoClientRequest;
@@ -17,8 +16,6 @@ import org.springframework.web.bind.annotation.*;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
 import java.io.IOException;
-
-import static com.ruoyi.common.core.domain.AjaxResult.success;
 
 @Tag(name = "星链家-AI服务调用接口")
 @RestController
@@ -35,9 +32,9 @@ public class FurnitureApiController {
     )
     @Log(title = "场景图片生成", businessType = BusinessType.UPDATE)
     @PostMapping(value = "/image/generate-scene", consumes = MediaType.APPLICATION_JSON_VALUE)
-    public AjaxResult imageGenerateScene(@RequestBody GenerateSceneRequest request) throws IOException {
+    public R<?> imageGenerateScene(@RequestBody GenerateSceneRequest request) throws IOException {
         request.setApiNumber(ApiNumberConstants.IMAGE2IMAGE_YUNWU.getApiNumber());
-        return success(furnitureApiService.imageGenerateScene(request));
+        return R.ok(furnitureApiService.imageGenerateScene(request));
     }
 
     @Operation(summary = "文案生成接口", description = "文案生成接口")
@@ -47,9 +44,9 @@ public class FurnitureApiController {
     )
     @Log(title = "文案生成接口", businessType = BusinessType.UPDATE)
     @PostMapping(value = "/copy/generate", consumes = MediaType.APPLICATION_JSON_VALUE)
-    public AjaxResult copyGenerate(@RequestBody CopyGenerateRequest request) {
+    public R<?> copyGenerate(@RequestBody CopyGenerateRequest request) {
         request.setApiNumber(ApiNumberConstants.LINGGANWENAN_STREAM_YUNWU.getApiNumber());
-        return success(furnitureApiService.copyGenerate(request));
+        return R.ok(furnitureApiService.copyGenerate(request));
     }
 
     @Operation(summary = "图像生成视频", description = "图像生成视频")
@@ -59,8 +56,8 @@ public class FurnitureApiController {
     )
     @Log(title = "图像生成视频", businessType = BusinessType.UPDATE)
     @PostMapping(value = "/image/generate-video", consumes = MediaType.APPLICATION_JSON_VALUE)
-    public AjaxResult imageGenerateVideo(@RequestBody ImageGenerateVideoClientRequest request) throws IOException {
-        return success(furnitureApiService.imageGenerateVideo(request));
+    public R<?> imageGenerateVideo(@RequestBody ImageGenerateVideoClientRequest request) throws IOException {
+        return R.ok(furnitureApiService.imageGenerateVideo(request));
     }
 
     @Operation(summary = "建立任务SSE流", description = "建立任务调用的SSE连接")

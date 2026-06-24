@@ -19,6 +19,7 @@ import com.ruoyi.starhome.enums.PayWayConstants;
 import com.ruoyi.starhome.mapper.FurnitureRechargeOrderMapper;
 import com.ruoyi.starhome.service.IFurnitureRechargePackageService;
 import com.ruoyi.starhome.service.IFurnitureUserBalanceAccountService;
+import com.ruoyi.starhome.service.IWechatNotifyService;
 import com.ruoyi.starhome.service.IWechatPayService;
 import com.ruoyi.system.mapper.SysUserMapper;
 import okhttp3.MediaType;
@@ -69,6 +70,9 @@ public class WechatPayServiceImpl implements IWechatPayService {
 
     @Autowired
     private IFurnitureRechargePackageService furnitureRechargePackageService;
+
+    @Autowired
+    private IWechatNotifyService wechatNotifyService;
 
     @Autowired
     private SysUserMapper sysUserMapper;
@@ -208,6 +212,23 @@ public class WechatPayServiceImpl implements IWechatPayService {
 
                 balanceAccountService.recharge(order.getUserId(), getProvideAmountOrPayAmount(order));
                 updateUserVipStatusIfNeeded(order);
+
+                // 推送充值成功模板消息
+                try {
+                    BigDecimal provideAmount = getProvideAmountOrPayAmount(order);
+                    BigDecimal balance = getCoinBalance(order.getUserId());
+                    wechatNotifyService.notifyRechargeSuccess(
+                            order.getUserId(),
+                            orderNo,
+                            order.getAmount().toString(),
+                            PayWayConstants.WECHAT,
+                            provideAmount.toString(),
+                            balance.toString()
+                    );
+                } catch (Exception e) {
+                    log.error("发送充值成功模板消息失败 orderNo={}", orderNo, e);
+                }
+
                 log.info("微信充值订单支付成功, orderNo={}, transactionId={}", orderNo, order.getTransactionId());
             } else if ("CLOSED".equals(tradeState)) {
                 order.setPayStatus(PayStatusConstants.CLOSED);
@@ -270,6 +291,22 @@ public class WechatPayServiceImpl implements IWechatPayService {
 
             balanceAccountService.recharge(order.getUserId(), getProvideAmountOrPayAmount(order));
             updateUserVipStatusIfNeeded(order);
+
+            // 推送充值成功模板消息
+            try {
+                BigDecimal provideAmount = getProvideAmountOrPayAmount(order);
+                BigDecimal balance = getCoinBalance(order.getUserId());
+                wechatNotifyService.notifyRechargeSuccess(
+                        order.getUserId(),
+                        orderNo,
+                        order.getAmount().toString(),
+                        PayWayConstants.WECHAT,
+                        provideAmount.toString(),
+                        balance.toString()
+                );
+            } catch (Exception e) {
+                log.error("发送充值成功模板消息失败 orderNo={}", orderNo, e);
+            }
         } else if ("CLOSED".equals(tradeState)) {
             order.setPayStatus(PayStatusConstants.CLOSED);
             order.setUpdateTime(new Date());
@@ -620,6 +657,19 @@ public class WechatPayServiceImpl implements IWechatPayService {
         return order.getAmount();
     }
 
+    /**
+     * 获取用户星币余额
+     */
+    private BigDecimal getCoinBalance(Long userId) {
+        try {
+            var account = balanceAccountService.selectFurnitureUserBalanceAccountByUserId(userId);
+            return account != null && account.getBalance() != null ? account.getBalance() : BigDecimal.ZERO;
+        } catch (Exception e) {
+            log.error("获取用户余额失败 userId={}", userId, e);
+            return BigDecimal.ZERO;
+        }
+    }
+
     private void updateUserVipStatusIfNeeded(FurnitureRechargeOrderDO order) {
         if (order.getPackageId() == null) {
             return;
@@ -656,6 +706,10 @@ public class WechatPayServiceImpl implements IWechatPayService {
         user.setIsVip(VIP_ENABLED);
         user.setVipBeginTime(vipBeginTime);
         user.setVipExpireTime(vipExpireTime);
+        // 如果充值包设置了会员等级，则赋值到用户表
+        if (rechargePackage.getVipLevel() != null) {
+            user.setVipLevel(rechargePackage.getVipLevel());
+        }
         sysUserMapper.updateUser(user);
     }
 

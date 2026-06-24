@@ -1,7 +1,7 @@
 package com.ruoyi.starhome.controller;
 
 import com.ruoyi.common.annotation.Anonymous;
-import com.ruoyi.common.core.domain.AjaxResult;
+import com.ruoyi.common.core.domain.R;
 import com.ruoyi.common.core.domain.model.RegisterBody;
 import com.ruoyi.common.utils.StringUtils;
 import com.ruoyi.framework.web.service.SysRegisterService;
@@ -12,9 +12,6 @@ import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
-
-import static com.ruoyi.common.core.domain.AjaxResult.error;
-import static com.ruoyi.common.core.domain.AjaxResult.success;
 
 @Tag(name = "用户管理")
 @RestController
@@ -33,22 +30,22 @@ public class UserController {
     @Anonymous
     @GetMapping("/sendSmsCode")
     @Operation(summary = "发送注册短信验证码", description = "向指定手机号发送注册短信验证码")
-    public AjaxResult sendSmsCode(@RequestParam("phone") String phone) {
+    public R<Void> sendSmsCode(@RequestParam("phone") String phone) {
         smsCodeService.sendRegisterCode(phone);
-        return success();
+        return R.ok();
     }
 
     @Anonymous
     @PostMapping("/register")
     @Operation(summary = "用户注册", description = "用户注册")
-    public AjaxResult register(@RequestBody RegisterBody user) {
+    public R<Void> register(@RequestBody RegisterBody user) {
         String msg = registerService.register(user);
-        return StringUtils.isEmpty(msg) ? success() : error(msg);
+        return StringUtils.isEmpty(msg) ? R.ok() : R.fail(msg);
     }
 
     @PostMapping("/updateUser")
     @Operation(summary = "修改用户信息", description = "修改用户信息")
-    public AjaxResult updateUser(@RequestBody UpdateUserRequest request) {
-        return success(userService.updateUser(request));
+    public R<?> updateUser(@RequestBody UpdateUserRequest request) {
+        return R.ok(userService.updateUser(request));
     }
 }

@@ -2,8 +2,8 @@ package com.ruoyi.starhome.controller;
 
 import com.ruoyi.common.annotation.Log;
 import com.ruoyi.common.core.controller.BaseController;
-import com.ruoyi.common.core.domain.AjaxResult;
-import com.ruoyi.common.core.page.TableDataInfo;
+import com.ruoyi.common.core.domain.PageResult;
+import com.ruoyi.common.core.domain.R;
 import com.ruoyi.common.enums.BusinessType;
 import com.ruoyi.starhome.domain.FurnitureDesignTaskDO;
 import com.ruoyi.starhome.service.IFurnitureDesignTaskService;
@@ -42,16 +42,16 @@ public class FurnitureDesignTaskController extends BaseController {
             @Parameter(name = "pageSize", description = "每页条数", example = "10")
     })
     @GetMapping("/list")
-    public TableDataInfo list(FurnitureDesignTaskDO furnitureDesignTask) {
+    public PageResult<FurnitureDesignTaskDO> list(FurnitureDesignTaskDO furnitureDesignTask) {
         startPage();
         List<FurnitureDesignTaskDO> list = furnitureDesignTaskService.selectFurnitureDesignTaskList(furnitureDesignTask);
-        return getDataTable(list);
+        return getPageResult(list);
     }
 
     @Operation(summary = "查询设计任务详情", description = "根据主键ID查询设计任务详情")
     @GetMapping("/{id}")
-    public AjaxResult getInfo(@Parameter(description = "主键ID", required = true, example = "1") @PathVariable Long id) {
-        return success(furnitureDesignTaskService.selectFurnitureDesignTaskById(id));
+    public R<FurnitureDesignTaskDO> getInfo(@Parameter(description = "主键ID", required = true, example = "1") @PathVariable Long id) {
+        return R.ok(furnitureDesignTaskService.selectFurnitureDesignTaskById(id));
     }
 
     @Operation(summary = "新增设计任务", description = "新增一条设计任务记录")
@@ -62,8 +62,8 @@ public class FurnitureDesignTaskController extends BaseController {
     )
     @Log(title = "设计任务", businessType = BusinessType.INSERT)
     @PostMapping
-    public AjaxResult add(@RequestBody FurnitureDesignTaskDO furnitureDesignTask) {
-        return toAjax(furnitureDesignTaskService.insertFurnitureDesignTask(furnitureDesignTask));
+    public R<Void> add(@RequestBody FurnitureDesignTaskDO furnitureDesignTask) {
+        return toR(furnitureDesignTaskService.insertFurnitureDesignTask(furnitureDesignTask));
     }
 
     @Operation(summary = "修改设计任务", description = "根据主键ID修改设计任务记录")
@@ -74,14 +74,14 @@ public class FurnitureDesignTaskController extends BaseController {
     )
     @Log(title = "设计任务", businessType = BusinessType.UPDATE)
     @PutMapping
-    public AjaxResult edit(@RequestBody FurnitureDesignTaskDO furnitureDesignTask) {
-        return toAjax(furnitureDesignTaskService.updateFurnitureDesignTask(furnitureDesignTask));
+    public R<Void> edit(@RequestBody FurnitureDesignTaskDO furnitureDesignTask) {
+        return toR(furnitureDesignTaskService.updateFurnitureDesignTask(furnitureDesignTask));
     }
 
     @Operation(summary = "删除设计任务", description = "按主键ID集合批量删除设计任务")
     @Log(title = "设计任务", businessType = BusinessType.DELETE)
     @DeleteMapping("/{ids}")
-    public AjaxResult remove(@Parameter(description = "主键ID数组，逗号分隔", required = true, example = "1,2,3") @PathVariable Long[] ids) {
-        return toAjax(furnitureDesignTaskService.deleteFurnitureDesignTaskByIds(ids));
+    public R<Void> remove(@Parameter(description = "主键ID数组，逗号分隔", required = true, example = "1,2,3") @PathVariable Long[] ids) {
+        return toR(furnitureDesignTaskService.deleteFurnitureDesignTaskByIds(ids));
     }
 }

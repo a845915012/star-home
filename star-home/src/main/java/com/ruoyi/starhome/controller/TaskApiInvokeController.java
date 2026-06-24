@@ -2,7 +2,7 @@ package com.ruoyi.starhome.controller;
 
 import com.ruoyi.common.annotation.Log;
 import com.ruoyi.common.core.controller.BaseController;
-import com.ruoyi.common.core.domain.AjaxResult;
+import com.ruoyi.common.core.domain.R;
 import com.ruoyi.common.enums.BusinessType;
 import com.ruoyi.framework.security.util.SecurityFrameworkUtils;
 import com.ruoyi.starhome.domain.dto.TaskApiInvokeRequest;
@@ -18,7 +18,6 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.ModelAttribute;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
@@ -41,19 +40,19 @@ public class TaskApiInvokeController extends BaseController {
     )
     @Log(title = "任务调用", businessType = BusinessType.UPDATE)
     @PostMapping(value = "/invoke", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
-    public AjaxResult invoke(@ModelAttribute TaskApiInvokeRequest request) {
+    public R<?> invoke(@ModelAttribute TaskApiInvokeRequest request) {
         request.setUserId(SecurityFrameworkUtils.getLoginUserId());
         request.setUseSse(Boolean.TRUE);
-        return success(taskApiInvokeService.invokeTaskApi(request));
+        return R.ok(taskApiInvokeService.invokeTaskApi(request));
     }
 
     @Operation(summary = "调用任务接口（Blocking）", description = "入参不变，强制 useSse=false，直接HTTP返回结果")
     @Log(title = "任务调用Blocking", businessType = BusinessType.UPDATE)
     @PostMapping(value = "/invokeBlocking", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
-    public AjaxResult invokeBlocking(@ModelAttribute TaskApiInvokeRequest request) {
+    public R<?> invokeBlocking(@ModelAttribute TaskApiInvokeRequest request) {
         request.setUserId(SecurityFrameworkUtils.getLoginUserId());
         request.setUseSse(false);
-        return success(taskApiInvokeService.invokeTaskApiBlocking(request));
+        return R.ok(taskApiInvokeService.invokeTaskApiBlocking(request));
     }
 
     @Operation(summary = "建立任务SSE流", description = "前端传入userId，建立任务调用的SSE连接")

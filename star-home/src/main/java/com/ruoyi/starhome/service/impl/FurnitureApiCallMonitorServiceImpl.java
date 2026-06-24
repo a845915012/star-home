@@ -1,7 +1,7 @@
 package com.ruoyi.starhome.service.impl;
 
+import com.ruoyi.common.core.domain.PageResult;
 import com.ruoyi.common.core.page.PageDomain;
-import com.ruoyi.common.core.page.TableDataInfo;
 import com.ruoyi.common.core.page.TableSupport;
 import com.ruoyi.common.core.redis.RedisCache;
 import com.ruoyi.starhome.domain.FurnitureApiCallMonitor;
@@ -40,7 +40,7 @@ public class FurnitureApiCallMonitorServiceImpl implements IFurnitureApiCallMoni
 
 
     @Override
-    public TableDataInfo selectFurnitureApiCallMonitorPage(FurnitureApiCallMonitor furnitureApiCallMonitor) {
+    public PageResult<FurnitureApiCallMonitor> selectFurnitureApiCallMonitorPage(FurnitureApiCallMonitor furnitureApiCallMonitor) {
         PageDomain pageDomain = TableSupport.buildPageRequest();
         int pageNum = pageDomain.getPageNum() == null ? 1 : pageDomain.getPageNum();
         int pageSize = pageDomain.getPageSize() == null ? 10 : pageDomain.getPageSize();
@@ -87,7 +87,7 @@ public class FurnitureApiCallMonitorServiceImpl implements IFurnitureApiCallMoni
         int toIndex = Math.min(fromIndex + pageSize, total);
         List<FurnitureApiCallMonitor> pageList = mergedList.subList(fromIndex, toIndex);
 
-        return new TableDataInfo(pageList, total);
+        return PageResult.ok(pageList, total);
     }
 
     private Long parseUserId(String userIdStr) {

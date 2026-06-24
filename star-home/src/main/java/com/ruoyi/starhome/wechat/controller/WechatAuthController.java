@@ -1,8 +1,7 @@
 package com.ruoyi.starhome.wechat.controller;
 
 import com.ruoyi.common.annotation.Anonymous;
-import com.ruoyi.common.core.controller.BaseController;
-import com.ruoyi.common.core.domain.AjaxResult;
+import com.ruoyi.common.core.domain.R;
 import com.ruoyi.starhome.wechat.domain.dto.WechatAuthRequest;
 import com.ruoyi.starhome.wechat.domain.dto.WechatCode2SessionResponse;
 import com.ruoyi.starhome.wechat.service.IWechatAuthService;
@@ -26,7 +25,7 @@ import org.springframework.web.bind.annotation.RestController;
 @Tag(name = "微信授权")
 @RestController
 @RequestMapping("/starhome/wechat/auth")
-public class WechatAuthController extends BaseController {
+public class WechatAuthController {
 
     @Autowired
     private IWechatAuthService wechatAuthService;
@@ -43,9 +42,9 @@ public class WechatAuthController extends BaseController {
     @Anonymous
     @Operation(summary = "小程序 code2Session", description = "小程序端通过 wx.login() 获取的临时 code 换取 openid 和 session_key")
     @PostMapping("/code2session")
-    public AjaxResult code2Session(@Valid @RequestBody WechatAuthRequest request) {
+    public R<WechatCode2SessionResponse> code2Session(@Valid @RequestBody WechatAuthRequest request) {
         WechatCode2SessionResponse response = wechatAuthService.code2Session(request.getCode());
-        return success(response);
+        return R.ok(response);
     }
 
     /**
@@ -60,8 +59,8 @@ public class WechatAuthController extends BaseController {
     @Anonymous
     @Operation(summary = "公众号网页授权", description = "公众号网页授权回调后，通过 code 换取 access_token 和 openid")
     @PostMapping("/oauth2")
-    public AjaxResult oauth2(@Valid @RequestBody WechatAuthRequest request) {
+    public R<WechatCode2SessionResponse> oauth2(@Valid @RequestBody WechatAuthRequest request) {
         WechatCode2SessionResponse response = wechatAuthService.oauth2AccessToken(request.getCode());
-        return success(response);
+        return R.ok(response);
     }
 }

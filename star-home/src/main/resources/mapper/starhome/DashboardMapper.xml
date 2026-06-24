@@ -1,0 +1,123 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.ruoyi.starhome.mapper.DashboardMapper">
+
+    <!-- ==================== 总用户数 ==================== -->
+
+    <!-- 统计总用户数（未删除） -->
+    <select id="countTotalUsers" resultType="Long">
+        SELECT COUNT(1)
+        FROM sys_user
+        WHERE del_flag = '0'
+    </select>
+
+    <!-- 统计上周同期总用户数 -->
+    <select id="countTotalUsersAtWeekAgo" resultType="Long">
+        SELECT COUNT(1)
+        FROM sys_user
+        WHERE del_flag = '0'
+          AND create_time &lt;= #{weekAgo}
+    </select>
+
+    <!-- ==================== 付费/普通用户 ==================== -->
+
+    <!-- 统计付费用户数（有充值成功记录的用户数，去重） -->
+    <select id="countPaidUsers" resultType="Long">
+        SELECT COUNT(DISTINCT user_id)
+        FROM furniture_recharge_order
+        WHERE pay_status = 1
+    </select>
+
+    <!-- 统计普通用户数（总用户 - 付费用户） -->
+    <select id="countNormalUsers" resultType="Long">
+        SELECT COUNT(1)
+        FROM sys_user u
+        WHERE u.del_flag = '0'
+          AND u.user_id NOT IN (
+              SELECT DISTINCT r.user_id
+              FROM furniture_recharge_order r
+              WHERE r.pay_status = 1
+          )
+    </select>
+
+    <!-- ==================== 月度收入 ==================== -->
+
+    <!-- 月度收入统计 -->
+    <select id="monthlyRevenue" resultType="com.ruoyi.starhome.domain.dto.DashboardVO$MonthlyRevenueStat">
+        SELECT COALESCE(SUM(amount), 0)   AS totalAmount,
+               COUNT(1)                   AS orderCount
+        FROM furniture_recharge_order
+        WHERE pay_status = 1
+          AND pay_time &gt;= #{monthStart}
+          AND pay_time &lt; #{monthEnd}
+    </select>
+
+    <!-- 上月收入统计 -->
+    <select id="lastMonthRevenue" resultType="com.ruoyi.starhome.domain.dto.DashboardVO$MonthlyRevenueStat">
+        SELECT COALESCE(SUM(amount), 0)   AS totalAmount,
+               COUNT(1)                   AS orderCount
+        FROM furniture_recharge_order
+        WHERE pay_status = 1
+          AND pay_time &gt;= #{monthStart}
+          AND pay_time &lt; #{monthEnd}
+    </select>
+
+    <!-- ==================== 新用户 ==================== -->
+
+    <!-- 昨日新增用户数 -->
+    <select id="countNewUsersYesterday" resultType="Long">
+        SELECT COUNT(1)
+        FROM sys_user
+        WHERE del_flag = '0'
+          AND create_time &gt;= #{yesterdayStart}
+          AND create_time &lt; #{yesterdayEnd}
+    </select>
+
+    <!-- 前一天新增用户数 -->
+    <select id="countNewUsersDayBefore" resultType="Long">
+        SELECT COUNT(1)
+        FROM sys_user
+        WHERE del_flag = '0'
+          AND create_time &gt;= #{dayStart}
+          AND create_time &lt; #{dayEnd}
+    </select>
+
+    <!-- ==================== AI调用统计 ==================== -->
+
+    <!-- 场景图片生成调用总量 -->
+    <select id="countSceneImageGen" resultType="Long">
+        SELECT COUNT(1)
+        FROM furniture_ai_call_records
+        WHERE module = '视觉设计'
+    </select>
+
+    <!-- 文案生成调用总量 -->
+    <select id="countCopywritingGen" resultType="Long">
+        SELECT COUNT(1)
+        FROM furniture_ai_call_records
+        WHERE module = '灵感文案'
+    </select>
+
+    <!-- 图像生成视频调用总量 -->
+    <select id="countImageToVideoGen" resultType="Long">
+        SELECT COUNT(1)
+        FROM furniture_ai_call_records
+        WHERE module = '动态影像'
+    </select>
+
+    <!-- ==================== 会员等级统计 ==================== -->
+
+    <!-- 统计各会员等级分布 -->
+    <select id="countVipLevelStats" resultType="com.ruoyi.starhome.domain.dto.DashboardVO$VipLevelStat">
+        SELECT COALESCE(vip_level, 0) AS vipLevel,
+               COUNT(1)               AS count
+        FROM sys_user
+        WHERE del_flag = '0'
+          AND status = '0'
+        GROUP BY vip_level
+        ORDER BY vip_level
+    </select>
+
+</mapper>

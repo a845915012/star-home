@@ -11,6 +11,8 @@ import com.github.pagehelper.PageHelper;
 import com.github.pagehelper.PageInfo;
 import com.ruoyi.common.constant.HttpStatus;
 import com.ruoyi.common.core.domain.AjaxResult;
+import com.ruoyi.common.core.domain.PageResult;
+import com.ruoyi.common.core.domain.R;
 import com.ruoyi.common.core.domain.model.LoginUser;
 import com.ruoyi.common.core.page.PageDomain;
 import com.ruoyi.common.core.page.TableDataInfo;
@@ -158,6 +160,37 @@ public class BaseController
     protected AjaxResult toAjax(boolean result)
     {
         return result ? success() : error();
+    }
+
+    /**
+     * 响应分页结果（泛型版，替代 getDataTable）
+     *
+     * @param list 列表数据
+     * @param <T>  元素类型
+     * @return 分页结果
+     */
+    protected <T> PageResult<T> getPageResult(List<T> list) {
+        return PageResult.ok(list, new com.github.pagehelper.PageInfo<>(list).getTotal());
+    }
+
+    /**
+     * 响应操作结果（泛型版，替代 toAjax(int)）
+     *
+     * @param rows 影响行数
+     * @return 操作结果
+     */
+    protected R<Void> toR(int rows) {
+        return rows > 0 ? R.ok() : R.fail();
+    }
+
+    /**
+     * 响应操作结果（泛型版，替代 toAjax(boolean)）
+     *
+     * @param result 结果
+     * @return 操作结果
+     */
+    protected R<Void> toR(boolean result) {
+        return result ? R.ok() : R.fail();
     }
 
     /**

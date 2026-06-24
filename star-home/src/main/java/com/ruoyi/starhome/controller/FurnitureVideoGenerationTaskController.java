@@ -1,7 +1,7 @@
 package com.ruoyi.starhome.controller;
 
 import com.ruoyi.common.core.controller.BaseController;
-import com.ruoyi.common.core.domain.AjaxResult;
+import com.ruoyi.common.core.domain.R;
 import com.ruoyi.starhome.domain.FurnitureVideoTaskDO;
 import com.ruoyi.starhome.domain.dto.FurnitureVideoGenerationTaskPageRequest;
 import com.ruoyi.starhome.service.IFurnitureVideoGenerationTaskService;
@@ -36,15 +36,15 @@ public class FurnitureVideoGenerationTaskController extends BaseController {
             @Parameter(name = "pageSize", description = "每页条数", example = "10")
     })
     @GetMapping("/page")
-    public AjaxResult page(FurnitureVideoGenerationTaskPageRequest request) {
-        return success(furnitureVideoGenerationTaskService.selectPage(request));
+    public R<?> page(FurnitureVideoGenerationTaskPageRequest request) {
+        return R.ok(furnitureVideoGenerationTaskService.selectPage(request));
     }
 
     @Operation(summary = "根据generationTaskId查询视频任务列表", description = "仅查询当前登录用户数据")
     @Parameter(name = "generationTaskId", description = "视频生成头任务ID", required = true, example = "1")
     @GetMapping("/videoTask/list")
-    public AjaxResult listVideoTasksByGenerationTaskId(@RequestParam("generationTaskId") Long generationTaskId) {
+    public R<List<FurnitureVideoTaskDO>> listVideoTasksByGenerationTaskId(@RequestParam("generationTaskId") Long generationTaskId) {
         List<FurnitureVideoTaskDO> list = furnitureVideoTaskService.listByGenerationTaskId(generationTaskId);
-        return success(list);
+        return R.ok(list);
     }
 }

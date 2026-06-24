@@ -1,7 +1,7 @@
 package com.ruoyi.starhome.controller;
 
 import com.ruoyi.common.core.controller.BaseController;
-import com.ruoyi.common.core.domain.AjaxResult;
+import com.ruoyi.common.core.domain.R;
 import com.ruoyi.starhome.domain.dto.FurnitureVideoTaskPageRequest;
 import com.ruoyi.starhome.service.IFurnitureVideoTaskService;
 import io.swagger.v3.oas.annotations.Operation;
@@ -28,7 +28,7 @@ public class FurnitureVideoTaskController extends BaseController {
             @Parameter(name = "pageSize", description = "每页条数", example = "10")
     })
     @GetMapping("/page")
-    public AjaxResult page(FurnitureVideoTaskPageRequest request) {
-        return success(furnitureVideoTaskService.selectPage(request));
+    public R<?> page(FurnitureVideoTaskPageRequest request) {
+        return R.ok(furnitureVideoTaskService.selectPage(request));
     }
 }

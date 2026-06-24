@@ -65,6 +65,9 @@ public class SysUser extends BaseEntity
     /** 是否会员（0否 1是） */
     private Integer isVip;
 
+    /** 会员等级 */
+    private Integer vipLevel;
+
     private LocalDateTime vipBeginTime;
 
     private LocalDateTime vipExpireTime;
@@ -239,6 +242,16 @@ public class SysUser extends BaseEntity
         this.isVip = isVip;
     }
 
+    public Integer getVipLevel()
+    {
+        return vipLevel;
+    }
+
+    public void setVipLevel(Integer vipLevel)
+    {
+        this.vipLevel = vipLevel;
+    }
+
     public LocalDateTime getVipBeginTime()
     {
         return vipBeginTime;
@@ -373,6 +386,7 @@ public class SysUser extends BaseEntity
             .append("password", getPassword())
             .append("status", getStatus())
             .append("isVip", getIsVip())
+            .append("vipLevel", getVipLevel())
             .append("vipBeginTime", getVipBeginTime())
             .append("vipExpireTime", getVipExpireTime())
             .append("wxOpenid", getWxOpenid())

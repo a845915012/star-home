@@ -24,11 +24,15 @@ public interface IWechatNotifyService {
     void notifyVideoFailed(Long userId, Long generationTaskId, String reason);
 
     /**
-     * 充值成功通知（可选）
+     * 充值成功通知
      *
-     * @param userId  用户ID
-     * @param orderNo 充值订单号
-     * @param amount  充值金额
+     * @param userId        用户ID
+     * @param orderNo       充值订单号
+     * @param amount        支付金额（元）
+     * @param payWay        支付方式（alipay / wechat）
+     * @param coinAmount    到账星币数
+     * @param coinBalance   星币余额
      */
-    void notifyRechargeSuccess(Long userId, String orderNo, String amount);
+    void notifyRechargeSuccess(Long userId, String orderNo, String amount,
+                               String payWay, String coinAmount, String coinBalance);
 }

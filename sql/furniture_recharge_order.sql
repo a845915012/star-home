@@ -25,3 +25,9 @@ CREATE TABLE IF NOT EXISTS `furniture_recharge_order` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='充值订单表';
 
 ALTER TABLE `furniture_recharge_package` ADD COLUMN `vip_day` int DEFAULT NULL COMMENT '会员天数';
+
+-- 充值套餐表增加会员等级字段
+ALTER TABLE `furniture_recharge_package` ADD COLUMN `vip_level` int DEFAULT NULL COMMENT '会员等级（1-普通会员 2-高级会员等）';
+
+-- 用户表增加会员等级字段
+ALTER TABLE `sys_user` ADD COLUMN `vip_level` int DEFAULT NULL COMMENT '会员等级';

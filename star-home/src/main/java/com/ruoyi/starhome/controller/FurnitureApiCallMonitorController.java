@@ -1,7 +1,7 @@
 package com.ruoyi.starhome.controller;
 
 import com.ruoyi.common.core.controller.BaseController;
-import com.ruoyi.common.core.page.TableDataInfo;
+import com.ruoyi.common.core.domain.PageResult;
 import com.ruoyi.starhome.domain.FurnitureApiCallMonitor;
 import com.ruoyi.starhome.service.IFurnitureApiCallMonitorService;
 import io.swagger.v3.oas.annotations.Operation;
@@ -28,7 +28,7 @@ public class FurnitureApiCallMonitorController extends BaseController {
             @Parameter(name = "pageSize", description = "每页条数", example = "10")
     })
     @GetMapping("/page")
-    public TableDataInfo page(FurnitureApiCallMonitor furnitureApiCallMonitor) {
+    public PageResult<?> page(FurnitureApiCallMonitor furnitureApiCallMonitor) {
         return furnitureApiCallMonitorService.selectFurnitureApiCallMonitorPage(furnitureApiCallMonitor);
     }
 }

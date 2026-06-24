@@ -2,8 +2,8 @@ package com.ruoyi.starhome.controller;
 
 import com.ruoyi.common.annotation.Log;
 import com.ruoyi.common.core.controller.BaseController;
-import com.ruoyi.common.core.domain.AjaxResult;
-import com.ruoyi.common.core.page.TableDataInfo;
+import com.ruoyi.common.core.domain.PageResult;
+import com.ruoyi.common.core.domain.R;
 import com.ruoyi.common.enums.BusinessType;
 import com.ruoyi.starhome.domain.FurnitureOrderDO;
 import com.ruoyi.starhome.domain.dto.CreateOrderRequest;
@@ -44,16 +44,16 @@ public class FurnitureOrderController extends BaseController {
             @Parameter(name = "pageSize", description = "每页条数", example = "10")
     })
     @GetMapping("/list")
-    public TableDataInfo list(FurnitureOrderDO furnitureOrder) {
+    public PageResult<FurnitureOrderDO> list(FurnitureOrderDO furnitureOrder) {
         startPage();
         List<FurnitureOrderDO> list = furnitureOrderService.selectFurnitureOrderList(furnitureOrder);
-        return getDataTable(list);
+        return getPageResult(list);
     }
 
     @Operation(summary = "查询订单详情", description = "根据主键ID查询订单详情")
     @GetMapping("/{id}")
-    public AjaxResult getInfo(@Parameter(description = "主键ID", required = true, example = "1") @PathVariable Long id) {
-        return success(furnitureOrderService.selectFurnitureOrderById(id));
+    public R<FurnitureOrderDO> getInfo(@Parameter(description = "主键ID", required = true, example = "1") @PathVariable Long id) {
+        return R.ok(furnitureOrderService.selectFurnitureOrderById(id));
     }
 
     @Operation(summary = "下单", description = "前端传入用户ID和套餐ID，创建订单并自动开通权益（beginTime=当前时间）")
@@ -64,8 +64,8 @@ public class FurnitureOrderController extends BaseController {
     )
     @Log(title = "订单", businessType = BusinessType.INSERT)
     @PostMapping("/create")
-    public AjaxResult create(@RequestBody CreateOrderRequest request) {
-        return success(furnitureOrderService.createOrder(request));
+    public R<?> create(@RequestBody CreateOrderRequest request) {
+        return R.ok(furnitureOrderService.createOrder(request));
     }
 
     @Operation(summary = "新增订单", description = "新增一条订单记录")
@@ -76,8 +76,8 @@ public class FurnitureOrderController extends BaseController {
     )
     @Log(title = "订单", businessType = BusinessType.INSERT)
     @PostMapping
-    public AjaxResult add(@RequestBody FurnitureOrderDO furnitureOrder) {
-        return toAjax(furnitureOrderService.insertFurnitureOrder(furnitureOrder));
+    public R<Void> add(@RequestBody FurnitureOrderDO furnitureOrder) {
+        return toR(furnitureOrderService.insertFurnitureOrder(furnitureOrder));
     }
 
     @Operation(summary = "修改订单", description = "根据主键ID修改订单记录")
@@ -88,14 +88,14 @@ public class FurnitureOrderController extends BaseController {
     )
     @Log(title = "订单", businessType = BusinessType.UPDATE)
     @PutMapping
-    public AjaxResult edit(@RequestBody FurnitureOrderDO furnitureOrder) {
-        return toAjax(furnitureOrderService.updateFurnitureOrder(furnitureOrder));
+    public R<Void> edit(@RequestBody FurnitureOrderDO furnitureOrder) {
+        return toR(furnitureOrderService.updateFurnitureOrder(furnitureOrder));
     }
 
     @Operation(summary = "删除订单", description = "按主键ID集合批量删除订单")
     @Log(title = "订单", businessType = BusinessType.DELETE)
     @DeleteMapping("/{ids}")
-    public AjaxResult remove(@Parameter(description = "主键ID数组，逗号分隔", required = true, example = "1,2,3") @PathVariable Long[] ids) {
-        return toAjax(furnitureOrderService.deleteFurnitureOrderByIds(ids));
+    public R<Void> remove(@Parameter(description = "主键ID数组，逗号分隔", required = true, example = "1,2,3") @PathVariable Long[] ids) {
+        return toR(furnitureOrderService.deleteFurnitureOrderByIds(ids));
     }
 }

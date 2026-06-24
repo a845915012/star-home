@@ -105,7 +105,13 @@ service.interceptors.response.use(res => {
       Notification.error({ title: msg })
       return Promise.reject('error')
     } else {
-      return res.data
+      // 兼容 PageResult<T> 分页结构：将 data.rows/data.total 提升到顶层，让前端无感知
+      const body = res.data
+      if (body.data && body.data.rows !== undefined && body.data.total !== undefined) {
+        body.rows = body.data.rows
+        body.total = body.data.total
+      }
+      return body
     }
   },
   error => {

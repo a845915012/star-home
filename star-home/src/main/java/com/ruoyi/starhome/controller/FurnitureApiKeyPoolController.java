@@ -2,8 +2,8 @@ package com.ruoyi.starhome.controller;
 
 import com.ruoyi.common.annotation.Log;
 import com.ruoyi.common.core.controller.BaseController;
-import com.ruoyi.common.core.domain.AjaxResult;
-import com.ruoyi.common.core.page.TableDataInfo;
+import com.ruoyi.common.core.domain.PageResult;
+import com.ruoyi.common.core.domain.R;
 import com.ruoyi.common.enums.BusinessType;
 import com.ruoyi.starhome.domain.FurnitureApiKeyPoolDO;
 import com.ruoyi.starhome.service.IFurnitureApiKeyPoolService;
@@ -41,16 +41,16 @@ public class FurnitureApiKeyPoolController extends BaseController {
             @Parameter(name = "pageSize", description = "每页条数", example = "10")
     })
     @GetMapping("/list")
-    public TableDataInfo list(FurnitureApiKeyPoolDO furnitureApiKeyPool) {
+    public PageResult<FurnitureApiKeyPoolDO> list(FurnitureApiKeyPoolDO furnitureApiKeyPool) {
         startPage();
         List<FurnitureApiKeyPoolDO> list = furnitureApiKeyPoolService.selectFurnitureApiKeyPoolList(furnitureApiKeyPool);
-        return getDataTable(list);
+        return getPageResult(list);
     }
 
     @Operation(summary = "查询API密钥池详情", description = "根据主键ID查询单条 API 密钥池记录")
     @GetMapping("/{id}")
-    public AjaxResult getInfo(@Parameter(description = "主键ID", required = true, example = "1") @PathVariable Long id) {
-        return success(furnitureApiKeyPoolService.selectFurnitureApiKeyPoolById(id));
+    public R<FurnitureApiKeyPoolDO> getInfo(@Parameter(description = "主键ID", required = true, example = "1") @PathVariable Long id) {
+        return R.ok(furnitureApiKeyPoolService.selectFurnitureApiKeyPoolById(id));
     }
 
     @Operation(summary = "新增API密钥池", description = "新增一条 API 密钥池记录")
@@ -61,8 +61,8 @@ public class FurnitureApiKeyPoolController extends BaseController {
     )
     @Log(title = "API密钥池", businessType = BusinessType.INSERT)
     @PostMapping
-    public AjaxResult add(@RequestBody FurnitureApiKeyPoolDO furnitureApiKeyPool) {
-        return toAjax(furnitureApiKeyPoolService.insertFurnitureApiKeyPool(furnitureApiKeyPool));
+    public R<Void> add(@RequestBody FurnitureApiKeyPoolDO furnitureApiKeyPool) {
+        return toR(furnitureApiKeyPoolService.insertFurnitureApiKeyPool(furnitureApiKeyPool));
     }
 
     @Operation(summary = "修改API密钥池", description = "根据主键ID修改 API 密钥池记录")
@@ -73,14 +73,14 @@ public class FurnitureApiKeyPoolController extends BaseController {
     )
     @Log(title = "API密钥池", businessType = BusinessType.UPDATE)
     @PutMapping
-    public AjaxResult edit(@RequestBody FurnitureApiKeyPoolDO furnitureApiKeyPool) {
-        return toAjax(furnitureApiKeyPoolService.updateFurnitureApiKeyPool(furnitureApiKeyPool));
+    public R<Void> edit(@RequestBody FurnitureApiKeyPoolDO furnitureApiKeyPool) {
+        return toR(furnitureApiKeyPoolService.updateFurnitureApiKeyPool(furnitureApiKeyPool));
     }
 
     @Operation(summary = "删除API密钥池", description = "按主键ID集合批量删除 API 密钥池记录")
     @Log(title = "API密钥池", businessType = BusinessType.DELETE)
     @DeleteMapping("/{ids}")
-    public AjaxResult remove(@Parameter(description = "主键ID数组，逗号分隔", required = true, example = "1,2") @PathVariable Long[] ids) {
-        return toAjax(furnitureApiKeyPoolService.deleteFurnitureApiKeyPoolByIds(ids));
+    public R<Void> remove(@Parameter(description = "主键ID数组，逗号分隔", required = true, example = "1,2") @PathVariable Long[] ids) {
+        return toR(furnitureApiKeyPoolService.deleteFurnitureApiKeyPoolByIds(ids));
     }
 }

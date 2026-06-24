@@ -2,8 +2,8 @@ package com.ruoyi.starhome.controller;
 
 import com.ruoyi.common.annotation.Log;
 import com.ruoyi.common.core.controller.BaseController;
-import com.ruoyi.common.core.domain.AjaxResult;
-import com.ruoyi.common.core.page.TableDataInfo;
+import com.ruoyi.common.core.domain.PageResult;
+import com.ruoyi.common.core.domain.R;
 import com.ruoyi.common.enums.BusinessType;
 import com.ruoyi.starhome.domain.FurnitureRechargePackageDO;
 import com.ruoyi.starhome.service.IFurnitureRechargePackageService;
@@ -45,16 +45,16 @@ public class FurnitureRechargePackageController extends BaseController {
             @Parameter(name = "pageSize", description = "每页条数", example = "10")
     })
     @GetMapping("/list")
-    public TableDataInfo list(FurnitureRechargePackageDO furnitureRechargePackage) {
+    public PageResult<FurnitureRechargePackageDO> list(FurnitureRechargePackageDO furnitureRechargePackage) {
         startPage();
         List<FurnitureRechargePackageDO> list = furnitureRechargePackageService.selectFurnitureRechargePackageList(furnitureRechargePackage);
-        return getDataTable(list);
+        return getPageResult(list);
     }
 
     @Operation(summary = "查询充值套餐详情", description = "根据主键ID查询充值套餐详情")
     @GetMapping("/{id}")
-    public AjaxResult getInfo(@Parameter(description = "主键ID", required = true, example = "1") @PathVariable Long id) {
-        return success(furnitureRechargePackageService.selectFurnitureRechargePackageById(id));
+    public R<FurnitureRechargePackageDO> getInfo(@Parameter(description = "主键ID", required = true, example = "1") @PathVariable Long id) {
+        return R.ok(furnitureRechargePackageService.selectFurnitureRechargePackageById(id));
     }
 
     @Operation(summary = "新增充值套餐", description = "新增一条充值套餐记录")
@@ -65,8 +65,8 @@ public class FurnitureRechargePackageController extends BaseController {
     )
     @Log(title = "充值套餐", businessType = BusinessType.INSERT)
     @PostMapping
-    public AjaxResult add(@RequestBody FurnitureRechargePackageDO furnitureRechargePackage) {
-        return toAjax(furnitureRechargePackageService.insertFurnitureRechargePackage(furnitureRechargePackage));
+    public R<Void> add(@RequestBody FurnitureRechargePackageDO furnitureRechargePackage) {
+        return toR(furnitureRechargePackageService.insertFurnitureRechargePackage(furnitureRechargePackage));
     }
 
     @Operation(summary = "修改充值套餐", description = "根据主键ID修改充值套餐记录")
@@ -77,14 +77,14 @@ public class FurnitureRechargePackageController extends BaseController {
     )
     @Log(title = "充值套餐", businessType = BusinessType.UPDATE)
     @PutMapping
-    public AjaxResult edit(@RequestBody FurnitureRechargePackageDO furnitureRechargePackage) {
-        return toAjax(furnitureRechargePackageService.updateFurnitureRechargePackage(furnitureRechargePackage));
+    public R<Void> edit(@RequestBody FurnitureRechargePackageDO furnitureRechargePackage) {
+        return toR(furnitureRechargePackageService.updateFurnitureRechargePackage(furnitureRechargePackage));
     }
 
     @Operation(summary = "删除充值套餐", description = "按主键ID集合批量删除充值套餐")
     @Log(title = "充值套餐", businessType = BusinessType.DELETE)
     @DeleteMapping("/{ids}")
-    public AjaxResult remove(@Parameter(description = "主键ID数组，逗号分隔", required = true, example = "1,2") @PathVariable Long[] ids) {
-        return toAjax(furnitureRechargePackageService.deleteFurnitureRechargePackageByIds(ids));
+    public R<Void> remove(@Parameter(description = "主键ID数组，逗号分隔", required = true, example = "1,2") @PathVariable Long[] ids) {
+        return toR(furnitureRechargePackageService.deleteFurnitureRechargePackageByIds(ids));
     }
 }

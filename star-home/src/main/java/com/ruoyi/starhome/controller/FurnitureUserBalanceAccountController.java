@@ -3,8 +3,8 @@ package com.ruoyi.starhome.controller;
 import com.github.pagehelper.PageHelper;
 import com.ruoyi.common.annotation.Log;
 import com.ruoyi.common.core.controller.BaseController;
-import com.ruoyi.common.core.domain.AjaxResult;
-import com.ruoyi.common.core.page.TableDataInfo;
+import com.ruoyi.common.core.domain.PageResult;
+import com.ruoyi.common.core.domain.R;
 import com.ruoyi.common.enums.BusinessType;
 import com.ruoyi.framework.security.util.SecurityFrameworkUtils;
 import com.ruoyi.starhome.domain.dto.FurnitureUserBalanceAccountPageRequest;
@@ -38,10 +38,10 @@ public class FurnitureUserBalanceAccountController extends BaseController {
             @Parameter(name = "pageSize", description = "每页条数", example = "10")
     })
     @GetMapping("/page")
-    public TableDataInfo page(FurnitureUserBalanceAccountPageRequest request) {
+    public PageResult<FurnitureUserBalanceAccountPageVO> page(FurnitureUserBalanceAccountPageRequest request) {
         try (com.github.pagehelper.Page<Object> page = PageHelper.startPage(request.getPageNum(), request.getPageSize())) {
             List<FurnitureUserBalanceAccountPageVO> list = furnitureUserBalanceAccountService.selectFurnitureUserBalanceAccountList(request.getUsername());
-            return getDataTable(list);
+            return getPageResult(list);
         }
     }
 
@@ -53,9 +53,9 @@ public class FurnitureUserBalanceAccountController extends BaseController {
     )
     @Log(title = "用户钱包", businessType = BusinessType.UPDATE)
     @PostMapping("/recharge")
-    public AjaxResult recharge(@RequestBody FurnitureUserBalanceOperateRequest request) {
+    public R<Void> recharge(@RequestBody FurnitureUserBalanceOperateRequest request) {
         furnitureUserBalanceAccountService.recharge(request.getUserId(), request.getAmount());
-        return success();
+        return R.ok();
     }
 
     @Operation(summary = "消费", description = "仅传入userId和amount，扣减余额并记录明细")
@@ -66,9 +66,9 @@ public class FurnitureUserBalanceAccountController extends BaseController {
     )
     @Log(title = "用户钱包", businessType = BusinessType.UPDATE)
     @PostMapping("/consume")
-    public AjaxResult consume(@RequestBody FurnitureUserBalanceOperateRequest request) {
+    public R<Void> consume(@RequestBody FurnitureUserBalanceOperateRequest request) {
         furnitureUserBalanceAccountService.consume(request.getUserId(), request.getAmount());
-        return success();
+        return R.ok();
     }
 
     @Operation(summary = "查询用户余额明细", description = "返回用户名、余额、已使用余额及明细列表")
@@ -78,21 +78,21 @@ public class FurnitureUserBalanceAccountController extends BaseController {
             @Parameter(name = "pageSize", description = "每页条数", example = "10")
     })
     @GetMapping("/records")
-    public AjaxResult records(@RequestParam(name = "type", required = false) Integer type,
-                              @RequestParam(name = "pageNum", required = false, defaultValue = "1") Integer pageNum,
-                              @RequestParam(name = "pageSize", required = false, defaultValue = "10") Integer pageSize) {
+    public R<FurnitureUserBalanceRecordsPageResp> records(@RequestParam(name = "type", required = false) Integer type,
+                                                          @RequestParam(name = "pageNum", required = false, defaultValue = "1") Integer pageNum,
+                                                          @RequestParam(name = "pageSize", required = false, defaultValue = "10") Integer pageSize) {
         FurnitureUserBalanceRecordsPageResp resp = furnitureUserBalanceAccountService.getUserBalanceRecords(
                 SecurityFrameworkUtils.getLoginUserId(),
                 type,
                 pageNum,
                 pageSize
         );
-        return success(resp);
+        return R.ok(resp);
     }
 
     @Operation(summary = "查询用户余额和会员情况")
     @GetMapping("/getUserBalance")
-    public AjaxResult getUserBalance() {
-        return success(furnitureUserBalanceAccountService.getUserBalance(SecurityFrameworkUtils.getLoginUserId()));
+    public R<?> getUserBalance() {
+        return R.ok(furnitureUserBalanceAccountService.getUserBalance(SecurityFrameworkUtils.getLoginUserId()));
     }
 }

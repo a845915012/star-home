@@ -1,7 +1,6 @@
 package com.ruoyi.starhome.controller;
 
-import com.ruoyi.common.core.controller.BaseController;
-import com.ruoyi.common.core.domain.AjaxResult;
+import com.ruoyi.common.core.domain.R;
 import com.ruoyi.starhome.domain.dto.WechatJsSdkSignatureResponse;
 import com.ruoyi.starhome.service.IWechatPayService;
 import io.swagger.v3.oas.annotations.Operation;
@@ -16,7 +15,7 @@ import org.springframework.web.bind.annotation.RestController;
 @Tag(name = "微信JSSDK")
 @RestController
 @RequestMapping("/starhome/wechat/jssdk")
-public class WechatJsSdkController extends BaseController {
+public class WechatJsSdkController {
 
     @Autowired
     private IWechatPayService wechatPayService;
@@ -24,8 +23,8 @@ public class WechatJsSdkController extends BaseController {
     @Operation(summary = "生成微信JSSDK签名", description = "根据前端当前页面URL生成微信JSSDK签名参数")
     @Parameter(name = "url", description = "当前页面完整URL，需和前端实际访问地址一致且不带#号后内容", example = "https://xinglianjia.cn/studio/index.html", required = true)
     @GetMapping("/signature")
-    public AjaxResult signature(@RequestParam("url") String url) {
+    public R<WechatJsSdkSignatureResponse> signature(@RequestParam("url") String url) {
         WechatJsSdkSignatureResponse response = wechatPayService.getJsSdkSignature(url);
-        return success(response);
+        return R.ok(response);
     }
 }

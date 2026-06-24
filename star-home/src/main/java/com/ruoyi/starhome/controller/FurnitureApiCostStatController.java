@@ -2,8 +2,8 @@ package com.ruoyi.starhome.controller;
 
 import com.ruoyi.common.annotation.Log;
 import com.ruoyi.common.core.controller.BaseController;
-import com.ruoyi.common.core.domain.AjaxResult;
-import com.ruoyi.common.core.page.TableDataInfo;
+import com.ruoyi.common.core.domain.PageResult;
+import com.ruoyi.common.core.domain.R;
 import com.ruoyi.common.enums.BusinessType;
 import com.ruoyi.starhome.domain.FurnitureApiCostStatDO;
 import com.ruoyi.starhome.service.IFurnitureApiCostStatService;
@@ -40,16 +40,16 @@ public class FurnitureApiCostStatController extends BaseController {
             @Parameter(name = "pageSize", description = "每页条数", example = "10")
     })
     @GetMapping("/list")
-    public TableDataInfo list(FurnitureApiCostStatDO furnitureApiCostStat) {
+    public PageResult<FurnitureApiCostStatDO> list(FurnitureApiCostStatDO furnitureApiCostStat) {
         startPage();
         List<FurnitureApiCostStatDO> list = furnitureApiCostStatService.selectFurnitureApiCostStatList(furnitureApiCostStat);
-        return getDataTable(list);
+        return getPageResult(list);
     }
 
     @Operation(summary = "查询API费用明细统计详情", description = "根据主键ID查询单条 API费用明细统计记录")
     @GetMapping("/{id}")
-    public AjaxResult getInfo(@Parameter(description = "主键ID", required = true, example = "1") @PathVariable Long id) {
-        return success(furnitureApiCostStatService.selectFurnitureApiCostStatById(id));
+    public R<FurnitureApiCostStatDO> getInfo(@Parameter(description = "主键ID", required = true, example = "1") @PathVariable Long id) {
+        return R.ok(furnitureApiCostStatService.selectFurnitureApiCostStatById(id));
     }
 
     @Operation(summary = "新增API费用明细统计", description = "新增一条 API费用明细统计记录")
@@ -60,8 +60,8 @@ public class FurnitureApiCostStatController extends BaseController {
     )
     @Log(title = "API费用明细统计", businessType = BusinessType.INSERT)
     @PostMapping
-    public AjaxResult add(@RequestBody FurnitureApiCostStatDO furnitureApiCostStat) {
-        return toAjax(furnitureApiCostStatService.insertFurnitureApiCostStat(furnitureApiCostStat));
+    public R<Void> add(@RequestBody FurnitureApiCostStatDO furnitureApiCostStat) {
+        return toR(furnitureApiCostStatService.insertFurnitureApiCostStat(furnitureApiCostStat));
     }
 
     @Operation(summary = "修改API费用明细统计", description = "根据主键ID修改 API费用明细统计记录")
@@ -72,14 +72,14 @@ public class FurnitureApiCostStatController extends BaseController {
     )
     @Log(title = "API费用明细统计", businessType = BusinessType.UPDATE)
     @PutMapping
-    public AjaxResult edit(@RequestBody FurnitureApiCostStatDO furnitureApiCostStat) {
-        return toAjax(furnitureApiCostStatService.updateFurnitureApiCostStat(furnitureApiCostStat));
+    public R<Void> edit(@RequestBody FurnitureApiCostStatDO furnitureApiCostStat) {
+        return toR(furnitureApiCostStatService.updateFurnitureApiCostStat(furnitureApiCostStat));
     }
 
     @Operation(summary = "删除API费用明细统计", description = "按主键ID集合批量删除 API费用明细统计记录")
     @Log(title = "API费用明细统计", businessType = BusinessType.DELETE)
     @DeleteMapping("/{ids}")
-    public AjaxResult remove(@Parameter(description = "主键ID数组，逗号分隔", required = true, example = "1,2,3") @PathVariable Long[] ids) {
-        return toAjax(furnitureApiCostStatService.deleteFurnitureApiCostStatByIds(ids));
+    public R<Void> remove(@Parameter(description = "主键ID数组，逗号分隔", required = true, example = "1,2,3") @PathVariable Long[] ids) {
+        return toR(furnitureApiCostStatService.deleteFurnitureApiCostStatByIds(ids));
     }
 }

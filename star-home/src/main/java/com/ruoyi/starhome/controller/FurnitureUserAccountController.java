@@ -2,8 +2,8 @@ package com.ruoyi.starhome.controller;
 
 import com.ruoyi.common.annotation.Log;
 import com.ruoyi.common.core.controller.BaseController;
-import com.ruoyi.common.core.domain.AjaxResult;
-import com.ruoyi.common.core.page.TableDataInfo;
+import com.ruoyi.common.core.domain.PageResult;
+import com.ruoyi.common.core.domain.R;
 import com.ruoyi.common.enums.BusinessType;
 import com.ruoyi.starhome.domain.FurnitureUserAccountDO;
 import com.ruoyi.starhome.service.IFurnitureUserAccountService;
@@ -42,16 +42,16 @@ public class FurnitureUserAccountController extends BaseController {
             @Parameter(name = "pageSize", description = "每页条数", example = "10")
     })
     @GetMapping("/list")
-    public TableDataInfo list(FurnitureUserAccountDO furnitureUserAccount) {
+    public PageResult<FurnitureUserAccountDO> list(FurnitureUserAccountDO furnitureUserAccount) {
         startPage();
         List<FurnitureUserAccountDO> list = furnitureUserAccountService.selectFurnitureUserAccountList(furnitureUserAccount);
-        return getDataTable(list);
+        return getPageResult(list);
     }
 
     @Operation(summary = "查询用户账号详情", description = "根据用户ID查询用户账号详情")
     @GetMapping("/{userId}")
-    public AjaxResult getInfo(@Parameter(description = "用户ID", required = true, example = "1001") @PathVariable Long userId) {
-        return success(furnitureUserAccountService.selectFurnitureUserAccountByUserId(userId));
+    public R<FurnitureUserAccountDO> getInfo(@Parameter(description = "用户ID", required = true, example = "1001") @PathVariable Long userId) {
+        return R.ok(furnitureUserAccountService.selectFurnitureUserAccountByUserId(userId));
     }
 
     @Operation(summary = "新增用户账号", description = "新增一条用户账号记录")
@@ -62,8 +62,8 @@ public class FurnitureUserAccountController extends BaseController {
     )
     @Log(title = "用户账号", businessType = BusinessType.INSERT)
     @PostMapping
-    public AjaxResult add(@RequestBody FurnitureUserAccountDO furnitureUserAccount) {
-        return toAjax(furnitureUserAccountService.insertFurnitureUserAccount(furnitureUserAccount));
+    public R<Void> add(@RequestBody FurnitureUserAccountDO furnitureUserAccount) {
+        return toR(furnitureUserAccountService.insertFurnitureUserAccount(furnitureUserAccount));
     }
 
     @Operation(summary = "修改用户账号", description = "根据用户ID修改用户账号记录")
@@ -74,14 +74,14 @@ public class FurnitureUserAccountController extends BaseController {
     )
     @Log(title = "用户账号", businessType = BusinessType.UPDATE)
     @PutMapping
-    public AjaxResult edit(@RequestBody FurnitureUserAccountDO furnitureUserAccount) {
-        return toAjax(furnitureUserAccountService.updateFurnitureUserAccount(furnitureUserAccount));
+    public R<Void> edit(@RequestBody FurnitureUserAccountDO furnitureUserAccount) {
+        return toR(furnitureUserAccountService.updateFurnitureUserAccount(furnitureUserAccount));
     }
 
     @Operation(summary = "删除用户账号", description = "按用户ID集合批量删除用户账号")
     @Log(title = "用户账号", businessType = BusinessType.DELETE)
     @DeleteMapping("/{userIds}")
-    public AjaxResult remove(@Parameter(description = "用户ID数组，逗号分隔", required = true, example = "1001,1002") @PathVariable Long[] userIds) {
-        return toAjax(furnitureUserAccountService.deleteFurnitureUserAccountByUserIds(userIds));
+    public R<Void> remove(@Parameter(description = "用户ID数组，逗号分隔", required = true, example = "1001,1002") @PathVariable Long[] userIds) {
+        return toR(furnitureUserAccountService.deleteFurnitureUserAccountByUserIds(userIds));
     }
 }

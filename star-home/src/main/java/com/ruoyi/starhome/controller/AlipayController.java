@@ -1,8 +1,7 @@
 package com.ruoyi.starhome.controller;
 
 import com.ruoyi.common.annotation.Anonymous;
-import com.ruoyi.common.core.controller.BaseController;
-import com.ruoyi.common.core.domain.AjaxResult;
+import com.ruoyi.common.core.domain.R;
 import com.ruoyi.starhome.domain.FurnitureRechargeOrderDO;
 import com.ruoyi.starhome.domain.dto.AlipayRechargeRequest;
 import com.ruoyi.starhome.domain.dto.AlipayRechargeResponse;
@@ -33,7 +32,7 @@ import java.util.Map;
 @Tag(name = "支付宝支付")
 @RestController
 @RequestMapping("/starhome/alipay")
-public class AlipayController extends BaseController {
+public class AlipayController {
 
     private static final Logger log = LoggerFactory.getLogger(AlipayController.class);
 
@@ -56,9 +55,9 @@ public class AlipayController extends BaseController {
             )
     )
     @PostMapping("/recharge/pc")
-    public AjaxResult rechargePc(@RequestBody AlipayRechargeRequest request) {
+    public R<AlipayRechargeResponse> rechargePc(@RequestBody AlipayRechargeRequest request) {
         AlipayRechargeResponse response = alipayService.createRechargeOrder(request);
-        return success(response);
+        return R.ok(response);
     }
 
     /**
@@ -77,9 +76,9 @@ public class AlipayController extends BaseController {
             )
     )
     @PostMapping("/recharge/h5")
-    public AjaxResult rechargeH5(@RequestBody AlipayRechargeRequest request) {
+    public R<AlipayRechargeResponse> rechargeH5(@RequestBody AlipayRechargeRequest request) {
         AlipayRechargeResponse response = alipayService.createH5RechargeOrder(request);
-        return success(response);
+        return R.ok(response);
     }
 
     /**
@@ -114,7 +113,7 @@ public class AlipayController extends BaseController {
     @Anonymous
     @Operation(summary = "支付宝同步回调", description = "用户支付完成后跳转回来的页面，可用于前端展示支付结果")
     @GetMapping("/return")
-    public AjaxResult returnUrl(@RequestParam("out_trade_no") String orderNo) {
+    public R<Map<String, Object>> returnUrl(@RequestParam("out_trade_no") String orderNo) {
         log.info("支付宝同步回调, 订单号: {}", orderNo);
 
         // 查询订单状态
@@ -130,7 +129,7 @@ public class AlipayController extends BaseController {
         result.put("packageId", order != null ? order.getPackageId() : null);
         result.put("payTime", order != null ? order.getPayTime() : null);
 
-        return success(result);
+        return R.ok(result);
     }
 
     /**
@@ -139,7 +138,7 @@ public class AlipayController extends BaseController {
     @Operation(summary = "查询订单支付状态", description = "根据订单号查询充值订单的支付状态")
     @Parameter(name = "orderNo", description = "充值订单号", example = "RC202601031234561234ABCD", required = true)
     @GetMapping("/query")
-    public AjaxResult queryOrder(@RequestParam("orderNo") String orderNo) {
+    public R<Map<String, Object>> queryOrder(@RequestParam("orderNo") String orderNo) {
         FurnitureRechargeOrderDO order = alipayService.queryPayStatus(orderNo);
 
         Map<String, Object> result = new HashMap<>();
@@ -152,7 +151,7 @@ public class AlipayController extends BaseController {
         result.put("payTime", order.getPayTime());
         result.put("userId", order.getUserId());
 
-        return success(result);
+        return R.ok(result);
     }
 
     /**
@@ -161,11 +160,11 @@ public class AlipayController extends BaseController {
     @Operation(summary = "查询充值订单详情", description = "根据订单号查询充值订单完整信息")
     @Parameter(name = "orderNo", description = "充值订单号", example = "RC202601031234561234ABCD", required = true)
     @GetMapping("/order")
-    public AjaxResult getOrder(@RequestParam("orderNo") String orderNo) {
+    public R<FurnitureRechargeOrderDO> getOrder(@RequestParam("orderNo") String orderNo) {
         FurnitureRechargeOrderDO order = alipayService.getOrderByOrderNo(orderNo);
         if (order == null) {
-            return error("订单不存在");
+            return R.fail("订单不存在");
         }
-        return success(order);
+        return R.ok(order);
     }
 }

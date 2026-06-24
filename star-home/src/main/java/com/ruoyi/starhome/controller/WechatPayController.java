@@ -1,10 +1,8 @@
 package com.ruoyi.starhome.controller;
 
 import com.ruoyi.common.annotation.Anonymous;
-import com.ruoyi.common.core.controller.BaseController;
-import com.ruoyi.common.core.domain.AjaxResult;
+import com.ruoyi.common.core.domain.R;
 import com.ruoyi.starhome.domain.FurnitureRechargeOrderDO;
-import com.ruoyi.starhome.domain.dto.WechatJsSdkSignatureResponse;
 import com.ruoyi.starhome.domain.dto.WechatPayOrderResponse;
 import com.ruoyi.starhome.domain.dto.WechatPayRechargeRequest;
 import com.ruoyi.starhome.service.IWechatPayService;
@@ -14,6 +12,8 @@ import io.swagger.v3.oas.annotations.media.Content;
 import io.swagger.v3.oas.annotations.media.ExampleObject;
 import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -32,7 +32,9 @@ import java.util.Map;
 @Tag(name = "微信支付")
 @RestController
 @RequestMapping("/starhome/wechat/pay")
-public class WechatPayController extends BaseController {
+public class WechatPayController {
+
+    private static final Logger log = LoggerFactory.getLogger(WechatPayController.class);
 
     @Autowired
     private IWechatPayService wechatPayService;
@@ -50,10 +52,10 @@ public class WechatPayController extends BaseController {
             )
     )
     @PostMapping("/recharge/jsapi")
-    public AjaxResult rechargeJsapi(@RequestBody WechatPayRechargeRequest request) {
+    public R<WechatPayOrderResponse> rechargeJsapi(@RequestBody WechatPayRechargeRequest request) {
         WechatPayOrderResponse response = wechatPayService.createJsapiRechargeOrder(request);
-        logger.info("rechargeJsapi response : {}", response);
-        return success(response);
+        log.info("rechargeJsapi response : {}", response);
+        return R.ok(response);
     }
 
     @Operation(summary = "Native充值下单", description = "创建微信Native充值订单，返回二维码链接 codeUrl")
@@ -69,9 +71,9 @@ public class WechatPayController extends BaseController {
             )
     )
     @PostMapping("/recharge/native")
-    public AjaxResult rechargeNative(@RequestBody WechatPayRechargeRequest request) {
+    public R<WechatPayOrderResponse> rechargeNative(@RequestBody WechatPayRechargeRequest request) {
         WechatPayOrderResponse response = wechatPayService.createNativeRechargeOrder(request);
-        return success(response);
+        return R.ok(response);
     }
 
     @Operation(summary = "H5充值下单", description = "创建微信H5充值订单，返回跳转链接 h5Url，在微信外浏览器中打开后跳转微信完成支付")
@@ -87,9 +89,9 @@ public class WechatPayController extends BaseController {
             )
     )
     @PostMapping("/recharge/h5")
-    public AjaxResult rechargeH5(@RequestBody WechatPayRechargeRequest request) {
+    public R<WechatPayOrderResponse> rechargeH5(@RequestBody WechatPayRechargeRequest request) {
         WechatPayOrderResponse response = wechatPayService.createH5RechargeOrder(request);
-        return success(response);
+        return R.ok(response);
     }
 
     @Anonymous
@@ -107,7 +109,7 @@ public class WechatPayController extends BaseController {
     @Operation(summary = "查询微信充值订单支付状态", description = "根据订单号主动查询微信支付状态")
     @Parameter(name = "orderNo", description = "充值订单号", example = "RC20260618112233A1B2C3D4", required = true)
     @GetMapping("/query")
-    public AjaxResult queryOrder(@RequestParam("orderNo") String orderNo) {
+    public R<Map<String, Object>> queryOrder(@RequestParam("orderNo") String orderNo) {
         FurnitureRechargeOrderDO order = wechatPayService.queryPayStatus(orderNo);
 
         Map<String, Object> result = new HashMap<>();
@@ -121,18 +123,18 @@ public class WechatPayController extends BaseController {
         result.put("userId", order.getUserId());
         result.put("payWay", order.getPayWay());
         result.put("transactionId", order.getTransactionId());
-        return success(result);
+        return R.ok(result);
     }
 
     @Operation(summary = "查询微信充值订单详情", description = "根据订单号查询微信充值订单完整信息")
     @Parameter(name = "orderNo", description = "充值订单号", example = "RC20260618112233A1B2C3D4", required = true)
     @GetMapping("/order")
-    public AjaxResult getOrder(@RequestParam("orderNo") String orderNo) {
+    public R<FurnitureRechargeOrderDO> getOrder(@RequestParam("orderNo") String orderNo) {
         FurnitureRechargeOrderDO order = wechatPayService.getOrderByOrderNo(orderNo);
         if (order == null) {
-            return error("订单不存在");
+            return R.fail("订单不存在");
         }
-        return success(order);
+        return R.ok(order);
     }
 
 }

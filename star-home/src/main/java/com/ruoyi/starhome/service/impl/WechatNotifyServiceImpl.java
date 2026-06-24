@@ -89,14 +89,15 @@ public class WechatNotifyServiceImpl implements IWechatNotifyService {
     }
 
     @Override
-    public void notifyRechargeSuccess(Long userId, String orderNo, String amount) {
+    public void notifyRechargeSuccess(Long userId, String orderNo, String amount,
+                                       String payWay, String coinAmount, String coinBalance) {
         String templateId = wechatPayConfig.getRechargeSuccessTemplateId();
         if (StringUtils.isEmpty(templateId)) {
             log.info("充值成功模板消息ID未配置，跳过通知 userId={}", userId);
             return;
         }
         sendTemplateMessage(userId, templateId, WxNotifyTypeConstants.RECHARGE_SUCCESS,
-                buildRechargeSuccessData(orderNo, amount),
+                buildRechargeSuccessData(orderNo, amount, payWay, coinAmount, coinBalance),
                 orderNo);
     }
 
@@ -299,29 +300,30 @@ public class WechatNotifyServiceImpl implements IWechatNotifyService {
 
     /**
      * 构建充值成功通知数据
+     * <p>
+     * 模板字段：
+     * - thing4:  充值分类（支付方式 + 到账星币）
+     * - amount5: 充值金额
+     * - amount6: 账户余额
      */
-    private Map<String, Object> buildRechargeSuccessData(String orderNo, String amount) {
+    private Map<String, Object> buildRechargeSuccessData(String orderNo, String amount,
+                                                          String payWay, String coinAmount, String coinBalance) {
         Map<String, Object> data = new LinkedHashMap<>();
 
-        Map<String, String> first = new HashMap<>();
-        first.put("value", "充值成功！");
-        first.put("color", "#173177");
-        data.put("first", first);
+        Map<String, String> thing4 = new HashMap<>();
+        thing4.put("value", ("alipay".equals(payWay) ? "支付宝充值" : "微信充值") + "，到账" + coinAmount + "星币");
+        thing4.put("color", "#173177");
+        data.put("thing4", thing4);
 
-        Map<String, String> keyword1 = new HashMap<>();
-        keyword1.put("value", orderNo);
-        keyword1.put("color", "#173177");
-        data.put("keyword1", keyword1);
+        Map<String, String> amount5 = new HashMap<>();
+        amount5.put("value", amount);
+        amount5.put("color", "#173177");
+        data.put("amount5", amount5);
 
-        Map<String, String> keyword2 = new HashMap<>();
-        keyword2.put("value", amount + "元");
-        keyword2.put("color", "#173177");
-        data.put("keyword2", keyword2);
-
-        Map<String, String> remark = new HashMap<>();
-        remark.put("value", "感谢您的支持，余额已到账");
-        remark.put("color", "#888888");
-        data.put("remark", remark);
+        Map<String, String> amount6 = new HashMap<>();
+        amount6.put("value", coinBalance);
+        amount6.put("color", "#07C160");
+        data.put("amount6", amount6);
 
         return data;
     }

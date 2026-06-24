@@ -2,8 +2,8 @@ package com.ruoyi.starhome.controller;
 
 import com.ruoyi.common.annotation.Log;
 import com.ruoyi.common.core.controller.BaseController;
-import com.ruoyi.common.core.domain.AjaxResult;
-import com.ruoyi.common.core.page.TableDataInfo;
+import com.ruoyi.common.core.domain.PageResult;
+import com.ruoyi.common.core.domain.R;
 import com.ruoyi.common.enums.BusinessType;
 import com.ruoyi.starhome.domain.FurnitureMemberPackageDO;
 import com.ruoyi.starhome.service.IFurnitureMemberPackageService;
@@ -42,16 +42,16 @@ public class FurnitureMemberPackageController extends BaseController {
             @Parameter(name = "pageSize", description = "每页条数", example = "10")
     })
     @GetMapping("/list")
-    public TableDataInfo list(FurnitureMemberPackageDO furnitureMemberPackage) {
+    public PageResult<FurnitureMemberPackageDO> list(FurnitureMemberPackageDO furnitureMemberPackage) {
         startPage();
         List<FurnitureMemberPackageDO> list = furnitureMemberPackageService.selectFurnitureMemberPackageList(furnitureMemberPackage);
-        return getDataTable(list);
+        return getPageResult(list);
     }
 
     @Operation(summary = "查询会员套餐详情", description = "根据主键ID查询会员套餐详情")
     @GetMapping("/{id}")
-    public AjaxResult getInfo(@Parameter(description = "主键ID", required = true, example = "1") @PathVariable Long id) {
-        return success(furnitureMemberPackageService.selectFurnitureMemberPackageById(id));
+    public R<FurnitureMemberPackageDO> getInfo(@Parameter(description = "主键ID", required = true, example = "1") @PathVariable Long id) {
+        return R.ok(furnitureMemberPackageService.selectFurnitureMemberPackageById(id));
     }
 
     @Operation(summary = "新增会员套餐", description = "新增一条会员套餐记录")
@@ -62,8 +62,8 @@ public class FurnitureMemberPackageController extends BaseController {
     )
     @Log(title = "会员套餐", businessType = BusinessType.INSERT)
     @PostMapping
-    public AjaxResult add(@RequestBody FurnitureMemberPackageDO furnitureMemberPackage) {
-        return toAjax(furnitureMemberPackageService.insertFurnitureMemberPackage(furnitureMemberPackage));
+    public R<Void> add(@RequestBody FurnitureMemberPackageDO furnitureMemberPackage) {
+        return toR(furnitureMemberPackageService.insertFurnitureMemberPackage(furnitureMemberPackage));
     }
 
     @Operation(summary = "修改会员套餐", description = "根据主键ID修改会员套餐记录")
@@ -74,14 +74,14 @@ public class FurnitureMemberPackageController extends BaseController {
     )
     @Log(title = "会员套餐", businessType = BusinessType.UPDATE)
     @PutMapping
-    public AjaxResult edit(@RequestBody FurnitureMemberPackageDO furnitureMemberPackage) {
-        return toAjax(furnitureMemberPackageService.updateFurnitureMemberPackage(furnitureMemberPackage));
+    public R<Void> edit(@RequestBody FurnitureMemberPackageDO furnitureMemberPackage) {
+        return toR(furnitureMemberPackageService.updateFurnitureMemberPackage(furnitureMemberPackage));
     }
 
     @Operation(summary = "删除会员套餐", description = "按主键ID集合批量删除会员套餐")
     @Log(title = "会员套餐", businessType = BusinessType.DELETE)
     @DeleteMapping("/{ids}")
-    public AjaxResult remove(@Parameter(description = "主键ID数组，逗号分隔", required = true, example = "1,2") @PathVariable Long[] ids) {
-        return toAjax(furnitureMemberPackageService.deleteFurnitureMemberPackageByIds(ids));
+    public R<Void> remove(@Parameter(description = "主键ID数组，逗号分隔", required = true, example = "1,2") @PathVariable Long[] ids) {
+        return toR(furnitureMemberPackageService.deleteFurnitureMemberPackageByIds(ids));
     }
 }
