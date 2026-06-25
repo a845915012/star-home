@@ -45,19 +45,6 @@ public class FurnitureUserBalanceAccountController extends BaseController {
         }
     }
 
-    @Operation(summary = "充值", description = "仅传入userId和amount，增加余额并记录明细")
-    @io.swagger.v3.oas.annotations.parameters.RequestBody(
-            required = true,
-            description = "充值请求",
-            content = @Content(schema = @Schema(implementation = FurnitureUserBalanceOperateRequest.class), examples = @ExampleObject(value = "{\"userId\":1001,\"amount\":100.00}"))
-    )
-    @Log(title = "用户钱包", businessType = BusinessType.UPDATE)
-    @PostMapping("/recharge")
-    public R<Void> recharge(@RequestBody FurnitureUserBalanceOperateRequest request) {
-        furnitureUserBalanceAccountService.recharge(request.getUserId(), request.getAmount());
-        return R.ok();
-    }
-
     @Operation(summary = "消费", description = "仅传入userId和amount，扣减余额并记录明细")
     @io.swagger.v3.oas.annotations.parameters.RequestBody(
             required = true,

@@ -203,7 +203,7 @@ public class AlipayServiceImpl implements IAlipayService {
                 }
 
                 // 调用充值接口增加用户余额
-                balanceAccountService.recharge(order.getUserId(), getProvideAmountOrPayAmount(order));
+                balanceAccountService.recharge(order.getUserId(), getProvideAmountOrPayAmount(order), PayWayConstants.ALIPAY);
                 updateUserVipStatusIfNeeded(order);
 
                 // 推送充值成功模板消息
@@ -289,7 +289,7 @@ public class AlipayServiceImpl implements IAlipayService {
                     }
 
                     // 调用充值接口
-                    balanceAccountService.recharge(order.getUserId(), getProvideAmountOrPayAmount(order));
+                    balanceAccountService.recharge(order.getUserId(), getProvideAmountOrPayAmount(order), PayWayConstants.ALIPAY);
                     updateUserVipStatusIfNeeded(order);
 
                     // 推送充值成功模板消息

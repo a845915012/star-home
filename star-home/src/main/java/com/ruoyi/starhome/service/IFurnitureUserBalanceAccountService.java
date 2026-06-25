@@ -13,7 +13,13 @@ public interface IFurnitureUserBalanceAccountService {
 
     FurnitureUserBalanceAccountDO selectFurnitureUserBalanceAccountByUserId(Long userId);
 
-    void recharge(Long userId, BigDecimal amount);
+    /**
+     * 充值（带支付方式，用于区分微信/支付宝充值记录备注）
+     * @param userId 用户ID
+     * @param amount 到账星币数
+     * @param payWay 支付方式（wechat / alipay）
+     */
+    void recharge(Long userId, BigDecimal amount, String payWay);
 
     void consume(Long userId, BigDecimal amount);
 

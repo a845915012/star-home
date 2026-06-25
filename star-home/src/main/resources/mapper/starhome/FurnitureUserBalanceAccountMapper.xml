@@ -4,19 +4,6 @@
         "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
 <mapper namespace="com.ruoyi.starhome.mapper.FurnitureUserBalanceAccountMapper">
 
-    <resultMap type="com.ruoyi.starhome.domain.vo.FurnitureUserBalanceAccountPageVO" id="FurnitureUserBalanceAccountResult">
-        <result property="id" column="id"/>
-        <result property="userId" column="user_id"/>
-        <result property="balance" column="balance"/>
-        <result property="useBalance" column="use_balance"/>
-        <result property="createTime" column="create_time"/>
-        <result property="updateTime" column="update_time"/>
-        <result property="username" column="user_name"/>
-        <result property="phone" column="phonenumber"/>
-        <result property="email" column="email"/>
-        <result property="status" column="status"/>
-    </resultMap>
-
     <sql id="selectFurnitureUserBalanceAccountVo">
         select fua.id,
                fua.user_id,
@@ -27,12 +14,16 @@
                su.user_name,
                su.phonenumber,
                su.email,
-               su.status
+               su.status,
+               su.is_vip,
+               su.vip_level,
+               su.vip_begin_time,
+               su.vip_expire_time
         from furniture_user_balance_account fua
                  left join sys_user su on su.user_id = fua.user_id
     </sql>
 
-    <select id="selectFurnitureUserBalanceAccountList" resultMap="FurnitureUserBalanceAccountResult">
+    <select id="selectFurnitureUserBalanceAccountList" resultType="com.ruoyi.starhome.domain.vo.FurnitureUserBalanceAccountPageVO">
         <include refid="selectFurnitureUserBalanceAccountVo"/>
         <where>
             <if test="username != null and username != ''">and su.user_name like concat('%', #{username}, '%')</if>
@@ -48,7 +39,7 @@
         limit 1
     </select>
 
-    <select id="selectUserBalanceSummaryByUserId" resultMap="FurnitureUserBalanceAccountResult">
+    <select id="selectUserBalanceSummaryByUserId" resultType="com.ruoyi.starhome.domain.vo.FurnitureUserBalanceAccountPageVO">
         <include refid="selectFurnitureUserBalanceAccountVo"/>
         <where>
             and fua.user_id = #{userId}

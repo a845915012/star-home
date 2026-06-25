@@ -65,14 +65,31 @@ public class FurnitureUserBalanceAccountServiceImpl implements IFurnitureUserBal
 
     @Override
     @Transactional(rollbackFor = Exception.class)
-    public void recharge(Long userId, BigDecimal amount) {
+    public void recharge(Long userId, BigDecimal amount, String payWay) {
         validateOperate(userId, amount);
         FurnitureUserBalanceAccountDO account = ensureAccount(userId);
         BigDecimal balance = safeAmount(account.getBalance()).add(amount);
         account.setBalance(balance);
         account.setUpdateTime(new Date());
         furnitureUserBalanceAccountMapper.updateById(account);
-        insertRecord(userId, amount, TYPE_RECHARGE, "充值");
+
+        String remark = buildRechargeRemark(amount, payWay);
+        insertRecord(userId, amount, TYPE_RECHARGE, remark);
+    }
+
+    /**
+     * 构建充值备注：微信充值到账X星币 / 支付宝充值到账X星币
+     */
+    private String buildRechargeRemark(BigDecimal amount, String payWay) {
+        String payWayName;
+        if ("alipay".equalsIgnoreCase(payWay)) {
+            payWayName = "支付宝充值";
+        } else if ("wechat".equalsIgnoreCase(payWay)) {
+            payWayName = "微信充值";
+        } else {
+            payWayName = "充值";
+        }
+        return payWayName + "到账" + amount.stripTrailingZeros().toPlainString() + "星币";
     }
 
     @Override

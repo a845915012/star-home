@@ -210,7 +210,7 @@ public class WechatPayServiceImpl implements IWechatPayService {
                     return SUCCESS_NOTIFY_RESPONSE;
                 }
 
-                balanceAccountService.recharge(order.getUserId(), getProvideAmountOrPayAmount(order));
+                balanceAccountService.recharge(order.getUserId(), getProvideAmountOrPayAmount(order), PayWayConstants.WECHAT);
                 updateUserVipStatusIfNeeded(order);
 
                 // 推送充值成功模板消息
@@ -289,7 +289,7 @@ public class WechatPayServiceImpl implements IWechatPayService {
                 return order;
             }
 
-            balanceAccountService.recharge(order.getUserId(), getProvideAmountOrPayAmount(order));
+            balanceAccountService.recharge(order.getUserId(), getProvideAmountOrPayAmount(order), PayWayConstants.WECHAT);
             updateUserVipStatusIfNeeded(order);
 
             // 推送充值成功模板消息

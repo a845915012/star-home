@@ -3,6 +3,7 @@ package com.ruoyi.starhome.domain.vo;
 import com.baomidou.mybatisplus.annotation.IdType;
 import com.baomidou.mybatisplus.annotation.TableField;
 import com.baomidou.mybatisplus.annotation.TableId;
+import com.fasterxml.jackson.annotation.JsonFormat;
 import com.ruoyi.starhome.utils.DateUtil;
 import lombok.Data;
 import org.springframework.format.annotation.DateTimeFormat;
@@ -10,6 +11,7 @@ import org.springframework.format.annotation.DateTimeFormat;
 import java.io.Serial;
 import java.io.Serializable;
 import java.math.BigDecimal;
+import java.time.LocalDateTime;
 import java.util.Date;
 @Data
 public class FurnitureUserBalanceAccountPageVO implements Serializable {
@@ -37,4 +39,11 @@ public class FurnitureUserBalanceAccountPageVO implements Serializable {
     private Date updateTime;
 
     private String username;
+
+    private Integer isVip;
+    @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss")
+    private LocalDateTime vipBeginTime;
+    @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss")
+    private LocalDateTime vipExpireTime;
+    private Integer vipLevel;
 }

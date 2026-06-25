@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.ruoyi.starhome.mapper.FurnitureRechargeOrderMapper">
+
+    <select id="selectRechargeOrderListWithUser" resultType="com.ruoyi.starhome.domain.vo.FurnitureRechargeOrderVO">
+        SELECT o.id,
+               o.order_no          AS orderNo,
+               o.user_id           AS userId,
+               o.amount,
+               o.package_id        AS packageId,
+               o.provide_amount    AS provideAmount,
+               o.pay_status        AS payStatus,
+               o.pay_way           AS payWay,
+               o.pay_time          AS payTime,
+               o.subject,
+               o.body,
+               o.create_time       AS createTime,
+               o.update_time       AS updateTime,
+               o.remark,
+               u.user_name         AS userName,
+               u.phonenumber
+        FROM furniture_recharge_order o
+        LEFT JOIN sys_user u ON o.user_id = u.user_id
+        <where>
+            <if test="orderNo != null and orderNo != ''">
+                AND o.order_no = #{orderNo}
+            </if>
+            <if test="userId != null">
+                AND o.user_id = #{userId}
+            </if>
+            <if test="packageId != null">
+                AND o.package_id = #{packageId}
+            </if>
+            <if test="payStatus != null">
+                AND o.pay_status = #{payStatus}
+            </if>
+        </where>
+        ORDER BY o.id DESC
+    </select>
+
+</mapper>

@@ -3,27 +3,29 @@ package com.ruoyi.starhome.service.impl;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.ruoyi.common.exception.ServiceException;
 import com.ruoyi.starhome.domain.FurnitureMemberPackageDO;
-import com.ruoyi.starhome.domain.FurnitureOrderDO;
+import com.ruoyi.starhome.domain.FurnitureRechargeOrderDO;
 import com.ruoyi.starhome.domain.FurnitureUserPackageRightsDO;
 import com.ruoyi.starhome.domain.dto.CreateOrderRequest;
-import com.ruoyi.starhome.domain.vo.FurnitureOrderVO;
+import com.ruoyi.starhome.domain.vo.FurnitureRechargeOrderVO;
 import com.ruoyi.starhome.mapper.FurnitureMemberPackageMapper;
-import com.ruoyi.starhome.mapper.FurnitureOrderMapper;
+import com.ruoyi.starhome.mapper.FurnitureRechargeOrderMapper;
 import com.ruoyi.starhome.mapper.FurnitureUserPackageRightsMapper;
-import com.ruoyi.starhome.service.IFurnitureOrderService;
+import com.ruoyi.starhome.service.IFurnitureRechargeOrderService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
+import java.text.SimpleDateFormat;
 import java.util.Arrays;
 import java.util.Date;
 import java.util.List;
+import java.util.UUID;
 
 @Service
-public class FurnitureOrderServiceImpl implements IFurnitureOrderService {
+public class FurnitureRechargeOrderServiceImpl implements IFurnitureRechargeOrderService {
     @Autowired
-    private FurnitureOrderMapper furnitureOrderMapper;
+    private FurnitureRechargeOrderMapper furnitureRechargeOrderMapper;
 
     @Autowired
     private FurnitureMemberPackageMapper furnitureMemberPackageMapper;
@@ -32,42 +34,42 @@ public class FurnitureOrderServiceImpl implements IFurnitureOrderService {
     private FurnitureUserPackageRightsMapper furnitureUserPackageRightsMapper;
 
     @Override
-    public FurnitureOrderDO selectFurnitureOrderById(Long id) {
-        return furnitureOrderMapper.selectById(id);
+    public FurnitureRechargeOrderDO selectFurnitureRechargeOrderById(Long id) {
+        return furnitureRechargeOrderMapper.selectById(id);
     }
 
     @Override
-    public List<FurnitureOrderVO> selectFurnitureOrderList(FurnitureOrderDO furnitureOrder) {
-        return furnitureOrderMapper.selectOrderListWithUser(
-                furnitureOrder.getOrderNo(),
-                furnitureOrder.getUserId(),
-                furnitureOrder.getPackageId(),
-                furnitureOrder.getPayStatus());
+    public List<FurnitureRechargeOrderVO> selectFurnitureRechargeOrderList(FurnitureRechargeOrderDO furnitureRechargeOrder) {
+        return furnitureRechargeOrderMapper.selectRechargeOrderListWithUser(
+                furnitureRechargeOrder.getOrderNo(),
+                furnitureRechargeOrder.getUserId(),
+                furnitureRechargeOrder.getPackageId(),
+                furnitureRechargeOrder.getPayStatus());
     }
 
     @Override
-    public int insertFurnitureOrder(FurnitureOrderDO furnitureOrder) {
-        return furnitureOrderMapper.insert(furnitureOrder);
+    public int insertFurnitureRechargeOrder(FurnitureRechargeOrderDO furnitureRechargeOrder) {
+        return furnitureRechargeOrderMapper.insert(furnitureRechargeOrder);
     }
 
     @Override
-    public int updateFurnitureOrder(FurnitureOrderDO furnitureOrder) {
-        return furnitureOrderMapper.updateById(furnitureOrder);
+    public int updateFurnitureRechargeOrder(FurnitureRechargeOrderDO furnitureRechargeOrder) {
+        return furnitureRechargeOrderMapper.updateById(furnitureRechargeOrder);
     }
 
     @Override
-    public int deleteFurnitureOrderByIds(Long[] ids) {
-        return furnitureOrderMapper.deleteByIds(Arrays.asList(ids));
+    public int deleteFurnitureRechargeOrderByIds(Long[] ids) {
+        return furnitureRechargeOrderMapper.deleteByIds(Arrays.asList(ids));
     }
 
     @Override
-    public int deleteFurnitureOrderById(Long id) {
-        return furnitureOrderMapper.deleteById(id);
+    public int deleteFurnitureRechargeOrderById(Long id) {
+        return furnitureRechargeOrderMapper.deleteById(id);
     }
 
     @Override
     @Transactional(rollbackFor = Exception.class)
-    public FurnitureOrderDO createOrder(CreateOrderRequest request) {
+    public FurnitureRechargeOrderDO createOrder(CreateOrderRequest request) {
         if (request == null || request.getUserId() == null || request.getPackageId() == null) {
             throw new ServiceException("userId和packageId不能为空");
         }
@@ -82,17 +84,22 @@ public class FurnitureOrderServiceImpl implements IFurnitureOrderService {
 
         Date now = new Date();
 
-        // 1. 创建订单
-        FurnitureOrderDO order = new FurnitureOrderDO();
-        order.setOrderNo("SO" + System.currentTimeMillis());
+        // 1. 创建订单（使用 furniture_recharge_order 表）
+        FurnitureRechargeOrderDO order = new FurnitureRechargeOrderDO();
+        order.setOrderNo(generateOrderNo());
         order.setUserId(request.getUserId());
         order.setPackageId(request.getPackageId());
         order.setAmount(memberPackage.getPrice() == null ? BigDecimal.ZERO : memberPackage.getPrice());
+        order.setProvideAmount(memberPackage.getPrice() == null ? BigDecimal.ZERO : memberPackage.getPrice());
         order.setPayStatus(1);
         order.setPayWay("system");
         order.setPayTime(now);
+        order.setSubject("套餐购买");
+        order.setBody("下单/续费开通套餐");
         order.setRemark("下单/续费开通套餐");
-        furnitureOrderMapper.insert(order);
+        order.setCreateTime(now);
+        order.setUpdateTime(now);
+        furnitureRechargeOrderMapper.insert(order);
 
         // 2. 套餐权益：兼容首购与续费
         FurnitureUserPackageRightsDO rights = furnitureUserPackageRightsMapper.selectOne(
@@ -147,5 +154,12 @@ public class FurnitureOrderServiceImpl implements IFurnitureOrderService {
             return null;
         }
         return new Date(baseTime.getTime() + validDays * 24L * 60 * 60 * 1000);
+    }
+
+    private String generateOrderNo() {
+        SimpleDateFormat sdf = new SimpleDateFormat("yyyyMMddHHmmss");
+        String timestamp = sdf.format(new Date());
+        String uuid = UUID.randomUUID().toString().replace("-", "").substring(0, 8).toUpperCase();
+        return "RC" + timestamp + uuid;
     }
 }
