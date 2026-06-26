@@ -3,6 +3,8 @@ package com.ruoyi.web.controller.system;
 import java.util.Date;
 import java.util.List;
 import java.util.Set;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -18,6 +20,7 @@ import com.ruoyi.common.core.text.Convert;
 import com.ruoyi.common.utils.DateUtils;
 import com.ruoyi.common.utils.SecurityUtils;
 import com.ruoyi.common.utils.StringUtils;
+import com.ruoyi.common.utils.sign.Sm4Utils;
 import com.ruoyi.framework.web.service.SysLoginService;
 import com.ruoyi.framework.web.service.SysPermissionService;
 import com.ruoyi.framework.web.service.TokenService;
@@ -32,6 +35,8 @@ import com.ruoyi.system.service.ISysMenuService;
 @RestController
 public class SysLoginController
 {
+    private static final Logger log = LoggerFactory.getLogger(SysLoginController.class);
+
     @Autowired
     private SysLoginService loginService;
 
@@ -57,8 +62,16 @@ public class SysLoginController
     public AjaxResult login(@RequestBody LoginBody loginBody)
     {
         AjaxResult ajax = AjaxResult.success();
+        // 前端SM4加密传输，此处SM4解密得到明文密码
+        String decryptedPassword;
+        try {
+            decryptedPassword = Sm4Utils.decrypt(loginBody.getPassword());
+        } catch (Exception e) {
+            log.error("登录密码SM4解密失败", e);
+            return AjaxResult.error("密码解密失败");
+        }
         // 生成令牌
-        String token = loginService.login(loginBody.getUsername(), loginBody.getPassword(), loginBody.getCode(),
+        String token = loginService.login(loginBody.getUsername(), decryptedPassword, loginBody.getCode(),
                 loginBody.getUuid());
         ajax.put(Constants.TOKEN, token);
         return ajax;

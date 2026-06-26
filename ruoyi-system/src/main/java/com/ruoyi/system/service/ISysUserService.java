@@ -190,6 +190,15 @@ public interface ISysUserService
     public int resetUserPwd(Long userId, String password);
 
     /**
+     * 通过手机号重置密码
+     * 
+     * @param phone 手机号
+     * @param password 新密码
+     * @return 结果
+     */
+    public int resetPwdByPhone(String phone, String password);
+
+    /**
      * 通过用户ID删除用户
      * 
      * @param userId 用户ID

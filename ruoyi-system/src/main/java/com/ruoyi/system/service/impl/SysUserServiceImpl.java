@@ -394,6 +394,24 @@ public class SysUserServiceImpl implements ISysUserService
     }
 
     /**
+     * 通过手机号重置密码
+     * 
+     * @param phone 手机号
+     * @param password 新密码
+     * @return 结果
+     */
+    @Override
+    public int resetPwdByPhone(String phone, String password)
+    {
+        SysUser user = userMapper.selectUserByPhone(phone);
+        if (user == null)
+        {
+            return 0;
+        }
+        return userMapper.resetUserPwd(user.getUserId(), password);
+    }
+
+    /**
      * 新增用户角色信息
      * 
      * @param user 用户对象

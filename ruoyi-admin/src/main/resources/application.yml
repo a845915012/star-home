@@ -157,6 +157,11 @@ starhome:
     base-url: http://vimax-api:8000
     api-key: 753951abc
 
+# SM4国密加密配置（前端密码传输加密密钥，16字节）
+# 生产环境通过环境变量 SM4_KEY 配置，本地开发使用默认值
+sm4:
+  key: ${SM4_KEY:}
+
 aliyun:
   oss:
     access-key-id: ${ALIYUN_OSS_ACCESS_KEY_ID:}

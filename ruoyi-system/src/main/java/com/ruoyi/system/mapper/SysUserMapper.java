@@ -139,6 +139,14 @@ public interface SysUserMapper
     SysUser checkPhoneUnique(String phonenumber);
 
     /**
+     * 通过手机号查询用户
+     *
+     * @param phone 手机号
+     * @return 用户对象信息
+     */
+    SysUser selectUserByPhone(String phone);
+
+    /**
      * 校验email是否唯一
      *
      * @param email 用户邮箱
