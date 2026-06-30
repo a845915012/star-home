@@ -101,6 +101,19 @@ public class WechatNotifyServiceImpl implements IWechatNotifyService {
                 orderNo);
     }
 
+    @Override
+    public void notifyVideoResult(Long userId, Long generationTaskId, String taskName,
+                                   String finishTime, String result) {
+        String templateId = wechatPayConfig.getVideoResultTemplateId();
+        if (StringUtils.isEmpty(templateId)) {
+            log.info("视频结果通知模板消息ID未配置，跳过通知 userId={}", userId);
+            return;
+        }
+        sendTemplateMessage(userId, templateId, WxNotifyTypeConstants.VIDEO_RESULT,
+                buildVideoResultData(generationTaskId, taskName, finishTime, result),
+                String.valueOf(generationTaskId));
+    }
+
     /**
      * 发送模板消息核心方法
      */
@@ -326,5 +339,57 @@ public class WechatNotifyServiceImpl implements IWechatNotifyService {
         data.put("amount6", amount6);
 
         return data;
+    }
+
+    /**
+     * 构建视频生成结果统一通知数据
+     * <p>
+     * 模板字段：
+     * - character_string6: 工单编号
+     * - thing7:           工单名称
+     * - time3:            结束时间
+     * - const4:           处理结果（已完成 / 失败 / 异常）
+     */
+    private Map<String, Object> buildVideoResultData(Long generationTaskId, String taskName,
+                                                      String finishTime, String result) {
+        Map<String, Object> data = new LinkedHashMap<>();
+
+        Map<String, String> character_string6 = new HashMap<>();
+        character_string6.put("value", String.valueOf(generationTaskId));
+        data.put("character_string6", character_string6);
+
+        Map<String, String> thing7 = new HashMap<>();
+        thing7.put("value", taskName != null && !taskName.isBlank() ? taskName : "图片生成视频");
+        data.put("thing7", thing7);
+
+        Map<String, String> time3 = new HashMap<>();
+        time3.put("value", finishTime != null ? finishTime : "");
+        data.put("time3", time3);
+
+        Map<String, String> const4 = new HashMap<>();
+        const4.put("value", result);
+        const4.put("color", resolveResultColor(result));
+        data.put("const4", const4);
+
+        return data;
+    }
+
+    /**
+     * 根据处理结果返回对应的颜色
+     */
+    private String resolveResultColor(String result) {
+        if (result == null) {
+            return "#888888";
+        }
+        switch (result) {
+            case "已完成":
+                return "#07C160";
+            case "失败":
+                return "#FF0000";
+            case "异常":
+                return "#FF6600";
+            default:
+                return "#888888";
+        }
     }
 }

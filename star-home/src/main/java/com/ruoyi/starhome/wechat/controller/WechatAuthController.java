@@ -39,7 +39,6 @@ public class WechatAuthController {
      * @param request 包含 code 的请求体
      * @return openid / session_key / unionid
      */
-    @Anonymous
     @Operation(summary = "小程序 code2Session", description = "小程序端通过 wx.login() 获取的临时 code 换取 openid 和 session_key")
     @PostMapping("/code2session")
     public R<WechatCode2SessionResponse> code2Session(@Valid @RequestBody WechatAuthRequest request) {
@@ -56,7 +55,6 @@ public class WechatAuthController {
      * @param request 包含 code 的请求体
      * @return openid / access_token / unionid
      */
-    @Anonymous
     @Operation(summary = "公众号网页授权", description = "公众号网页授权回调后，通过 code 换取 access_token 和 openid")
     @PostMapping("/oauth2")
     public R<WechatCode2SessionResponse> oauth2(@Valid @RequestBody WechatAuthRequest request) {

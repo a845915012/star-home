@@ -157,6 +157,7 @@ public class FurnitureVideoTaskServiceImpl implements IFurnitureVideoTaskService
             String error = getText(root, "error");
             String resultUrl = getText(root, "result_url");
             String downloadUrl = buildDownloadUrl(taskId, resultUrl);
+            String agentPrompt = getText(root, "prompt");
 
             Date finishedAt = parseIsoDate(getText(root, "finished_at"));
 
@@ -166,6 +167,9 @@ public class FurnitureVideoTaskServiceImpl implements IFurnitureVideoTaskService
             update.setProgress(progress);
             update.setFailReason(error);
             update.setVideoUrlRemote(downloadUrl);
+            if (agentPrompt != null && !agentPrompt.isBlank()) {
+                update.setPrompt(agentPrompt);
+            }
             if (finishedAt != null) {
                 update.setFinishTime(finishedAt);
             }
@@ -178,16 +182,7 @@ public class FurnitureVideoTaskServiceImpl implements IFurnitureVideoTaskService
                 taskApiInvokeService.completeDeferredVideoUsageRecord(task.getGenerationTaskId(), null, "FAIL");
 
                 // 发送微信模板消息通知：视频生成失败
-                try {
-                    wechatNotifyService.notifyVideoFailed(
-                            task.getUserId(),
-                            task.getGenerationTaskId(),
-                            failReason
-                    );
-                } catch (Exception e) {
-                    log.error("发送视频生成失败微信通知失败, generationTaskId={}, userId={}",
-                            task.getGenerationTaskId(), task.getUserId(), e);
-                }
+                sendVideoResultNotify(task, "失败");
 
                 return responseText;
             }
@@ -205,17 +200,8 @@ public class FurnitureVideoTaskServiceImpl implements IFurnitureVideoTaskService
                 update.setStatus("success");
                 furnitureVideoTaskMapper.updateById(update);
 
-                // 发送微信模板消息通知：视频生成成功
-                try {
-                    wechatNotifyService.notifyVideoSuccess(
-                            task.getUserId(),
-                            task.getGenerationTaskId(),
-                            finalRemoteUrl
-                    );
-                } catch (Exception e) {
-                    log.error("发送视频生成成功微信通知失败, generationTaskId={}, userId={}",
-                            task.getGenerationTaskId(), task.getUserId(), e);
-                }
+                // 发送微信模板消息通知：视频生成完成
+                sendVideoResultNotify(task, "已完成");
 
                 return responseText;
             }
@@ -224,6 +210,13 @@ public class FurnitureVideoTaskServiceImpl implements IFurnitureVideoTaskService
             furnitureVideoTaskMapper.updateById(update);
             return responseText;
         } catch (Exception e) {
+            // 同步异常也尝试通知
+            try {
+                sendVideoResultNotify(task, "异常");
+            } catch (Exception ignore) {
+                log.error("发送视频生成异常微信通知失败, generationTaskId={}, userId={}",
+                        task.getGenerationTaskId(), task.getUserId(), ignore);
+            }
             throw new ServiceException("同步 vimax-agent 任务状态失败: " + e.getMessage());
         }
     }
@@ -378,6 +371,50 @@ public class FurnitureVideoTaskServiceImpl implements IFurnitureVideoTaskService
         }
         JsonNode value = node.path(field);
         return value.isMissingNode() || value.isNull() ? null : value.asText();
+    }
+
+    /**
+     * 发送视频生成结果统一微信通知
+     *
+     * @param task   视频子任务
+     * @param result 处理结果（已完成 / 失败 / 异常）
+     */
+    private void sendVideoResultNotify(FurnitureVideoTaskDO task, String result) {
+        try {
+            // 查询工单名称
+            String taskName = "图片生成视频";
+            FurnitureVideoGenerationTaskDO header = furnitureVideoGenerationTaskMapper.selectById(task.getGenerationTaskId());
+            if (header != null) {
+                StringBuilder sb = new StringBuilder();
+                if (header.getProduct() != null && !header.getProduct().isBlank()) {
+                    sb.append(header.getProduct());
+                }
+                if (header.getMaterial() != null && !header.getMaterial().isBlank()) {
+                    if (sb.length() > 0) {
+                        sb.append(" ");
+                    }
+                    sb.append(header.getMaterial());
+                }
+                if (sb.length() > 0) {
+                    taskName = sb.toString();
+                }
+            }
+
+            // 结束时间
+            String finishTime = com.ruoyi.common.utils.StringUtils.substring(
+                    java.time.LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss")), 0, 19);
+
+            wechatNotifyService.notifyVideoResult(
+                    task.getUserId(),
+                    task.getGenerationTaskId(),
+                    taskName,
+                    finishTime,
+                    result
+            );
+        } catch (Exception e) {
+            log.error("发送视频结果微信通知失败, generationTaskId={}, userId={}",
+                    task.getGenerationTaskId(), task.getUserId(), e);
+        }
     }
 
     private String trimEndSlash(String url) {

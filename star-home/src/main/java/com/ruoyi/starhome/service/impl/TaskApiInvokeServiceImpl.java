@@ -230,9 +230,18 @@ public class TaskApiInvokeServiceImpl implements ITaskApiInvokeService {
             throw new ServiceException("vimax-agent api-key 未配置（starhome.vimax-agent.api-key）");
         }
 
+        // 通过 number 查询 api pool 获取 token 和 model
+        String apiNumber = StringUtils.isNotBlank(request.getNumber()) ? request.getNumber() : IMAGE2VIDEO_API_NUMBER;
+        FurnitureNumberApiPoolDO videoApiPool = getApiPoolByNumber(apiNumber);
+        String token = videoApiPool.getApiKey();
+        String model = resolveMode(videoApiPool, DEFAULT_VIDEO_MODE);
+        request.setToken(token);
+        request.setModel(model);
+
         try {
             log.info("callVimaxAgentCreateJob begin");
-            String rawResponse = callVimaxAgentCreateJob(request.getImageUrl(), request.getProduct(), request.getMaterial(), request.getPrompt());
+            String rawResponse = callVimaxAgentCreateJob(request.getImageUrl(), request.getProduct(),
+                    request.getMaterial(), request.getPrompt(), token, model, request.getType());
             log.info("callVimaxAgentCreateJob end");
             JsonNode resultNode = mapper.readTree(rawResponse);
             String taskId = getText(resultNode, "job_id");
@@ -280,9 +289,7 @@ public class TaskApiInvokeServiceImpl implements ITaskApiInvokeService {
                 furnitureVideoGenerationTaskMapper.updateById(updateHeader);
             }
 
-            FurnitureNumberApiPoolDO videoApiPool = getApiPoolByNumberNullable(IMAGE2VIDEO_API_NUMBER);
-            String aiMode = resolveMode(videoApiPool, DEFAULT_VIDEO_MODE);
-            createDeferredVideoUsageRecord(userId, "动态影像", aiMode, generationTaskDO.getId(),
+            createDeferredVideoUsageRecord(userId, "动态影像", model, generationTaskDO.getId(),
                     request.getPrompt(), request.getPrompt(), String.join(",", request.getImageUrl()),
                     request.getConsumePrice() == null ? BigDecimal.ZERO : request.getConsumePrice());
 
@@ -290,7 +297,7 @@ public class TaskApiInvokeServiceImpl implements ITaskApiInvokeService {
             videoTask.setGenerationTaskId(generationTaskDO.getId());
             videoTask.setUserId(userId);
             videoTask.setTaskId(taskId);
-            videoTask.setModel(null);
+            videoTask.setModel(model);
             videoTask.setProgress(getText(resultNode, "message"));
             String status = getText(resultNode, "status");
             videoTask.setStatus(status == null || status.isBlank() ? "process" : status);
@@ -320,7 +327,8 @@ public class TaskApiInvokeServiceImpl implements ITaskApiInvokeService {
         }
     }
 
-    private String callVimaxAgentCreateJob(String publicImageUrl, String subject, String material, String extraPrompt) throws IOException {
+    private String callVimaxAgentCreateJob(String publicImageUrl, String subject, String material, String extraPrompt,
+                                            String token, String model, String type) throws IOException {
         ObjectNode payload = mapper.createObjectNode();
         payload.put("image_url", publicImageUrl);
         if (subject != null && !subject.isBlank()) {
@@ -333,6 +341,15 @@ public class TaskApiInvokeServiceImpl implements ITaskApiInvokeService {
             payload.put("extra_prompt", extraPrompt);
         }
         payload.put("duration", 16);
+        if (token != null && !token.isBlank()) {
+            payload.put("token", token);
+        }
+        if (model != null && !model.isBlank()) {
+            payload.put("model", model);
+        }
+        if (type != null && !type.isBlank()) {
+            payload.put("type", type);
+        }
 
         String endpoint = trimEndSlash(vimaxAgentBaseUrl) + "/api/generate/json";
         String jsonBody = mapper.writeValueAsString(payload);
@@ -977,7 +994,6 @@ public class TaskApiInvokeServiceImpl implements ITaskApiInvokeService {
 
     private String streamWorkflowResult(ResponseBody responseBody, SseEmitter emitter, String[] usageHolder) throws IOException {
         StringBuilder fullResult = new StringBuilder();
-        boolean started = false;
         try (BufferedSource source = responseBody.source()) {
             while (!source.exhausted()) {
                 String line = source.readUtf8Line();
@@ -1024,19 +1040,8 @@ public class TaskApiInvokeServiceImpl implements ITaskApiInvokeService {
                     }
 
                     if (!chunk.isBlank()) {
-                        String normalizedChunk = chunk;
-                        if (!started) {
-                            if ("content".equalsIgnoreCase(normalizedChunk)) {
-                                continue;
-                            }
-                            if (normalizedChunk.toLowerCase().startsWith("content")) {
-                                chunk = normalizedChunk.substring("content".length());
-                                if (chunk.isBlank()) {
-                                    continue;
-                                }
-                            }
-                            started = true;
-                        }
+                        chunk = chunk.replace("content","");
+                        chunk = chunk.replace("role","");
                         fullResult.append(chunk);
                         emitter.send(SseEmitter.event().data(chunk));
                     }

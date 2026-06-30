@@ -16,4 +16,7 @@ public final class WxNotifyTypeConstants {
 
     /** 充值成功 */
     public static final String RECHARGE_SUCCESS = "RECHARGE_SUCCESS";
+
+    /** 视频生成结果通知（已完成/失败/异常） */
+    public static final String VIDEO_RESULT = "VIDEO_RESULT";
 }

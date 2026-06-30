@@ -77,4 +77,10 @@ public class WechatPayConfig {
      * 模板消息ID - 充值成功通知（可选）
      */
     private String rechargeSuccessTemplateId;
+
+    /**
+     * 模板消息ID - 视频生成结果统一通知（可选）
+     * 模板字段：character_string6(工单编号)、thing7(工单名称)、time3(结束时间)、const4(处理结果)
+     */
+    private String videoResultTemplateId;
 }

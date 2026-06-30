@@ -21,4 +21,20 @@ public class ImageGenerateVideoRequest {
     private Long generationTaskId;
     private String consumeCode;
     private BigDecimal consumePrice;
+    /**
+     * api池编号，用于查询token和model
+     */
+    private String number;
+    /**
+     * 视频生成类型，前端传入
+     */
+    private String type;
+    /**
+     * 从furniture_number_api_pool获取的apiKey
+     */
+    private String token;
+    /**
+     * 从furniture_number_api_pool获取的mode
+     */
+    private String model;
 }

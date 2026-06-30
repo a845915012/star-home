@@ -35,4 +35,15 @@ public interface IWechatNotifyService {
      */
     void notifyRechargeSuccess(Long userId, String orderNo, String amount,
                                String payWay, String coinAmount, String coinBalance);
+    /**
+     * 视频生成结果统一通知（已完成/失败/异常）
+     *
+     * @param userId           用户ID
+     * @param generationTaskId 生成任务ID（工单编号）
+     * @param taskName         工单名称
+     * @param finishTime       结束时间
+     * @param result           处理结果（已完成 / 失败 / 异常）
+     */
+    void notifyVideoResult(Long userId, Long generationTaskId, String taskName,
+                           String finishTime, String result);
 }

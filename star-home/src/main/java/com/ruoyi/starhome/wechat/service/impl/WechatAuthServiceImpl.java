@@ -2,11 +2,14 @@ package com.ruoyi.starhome.wechat.service.impl;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.ruoyi.common.core.domain.entity.SysUser;
 import com.ruoyi.common.exception.ServiceException;
+import com.ruoyi.common.utils.SecurityUtils;
 import com.ruoyi.common.utils.StringUtils;
 import com.ruoyi.starhome.config.WechatPayConfig;
 import com.ruoyi.starhome.wechat.domain.dto.WechatCode2SessionResponse;
 import com.ruoyi.starhome.wechat.service.IWechatAuthService;
+import com.ruoyi.system.mapper.SysUserMapper;
 import okhttp3.OkHttpClient;
 import okhttp3.Request;
 import okhttp3.Response;
@@ -42,6 +45,9 @@ public class WechatAuthServiceImpl implements IWechatAuthService {
 
     @Autowired
     private WechatPayConfig wechatPayConfig;
+
+    @Autowired
+    private SysUserMapper sysUserMapper;
 
     private final OkHttpClient okHttpClient = new OkHttpClient();
     private final ObjectMapper objectMapper = new ObjectMapper();
@@ -125,7 +131,10 @@ public class WechatAuthServiceImpl implements IWechatAuthService {
         result.setOpenid(node.path("openid").asText(null));
         result.setSessionKey(node.path("session_key").asText(null));
         result.setUnionid(node.path("unionid").asText(null));
-
+        SysUser sysUser = new SysUser();
+        sysUser.setUserId(SecurityUtils.getUserId());
+        sysUser.setWxOpenid(result.getOpenid());
+        sysUserMapper.updateUser(sysUser);
         if (StringUtils.isEmpty(result.getOpenid())) {
             throw new ServiceException("获取微信 openid 失败");
         }
@@ -154,7 +163,10 @@ public class WechatAuthServiceImpl implements IWechatAuthService {
         result.setSessionKey(accessToken);
         result.setOpenid(node.path("openid").asText(null));
         result.setUnionid(node.path("unionid").asText(null));
-
+        SysUser sysUser = new SysUser();
+        sysUser.setUserId(SecurityUtils.getUserId());
+        sysUser.setWxOpenid(result.getOpenid());
+        sysUserMapper.updateUser(sysUser);
         if (StringUtils.isEmpty(result.getOpenid())) {
             throw new ServiceException("获取微信 openid 失败");
         }
