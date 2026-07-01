@@ -154,7 +154,7 @@ starhome:
     # 视频任务处理锁超时分钟数（超过该时间会在下次调度时回收锁）
     lock-expire-minutes: 10
   vimax-agent:
-    base-url: http://vimax-api:8000
+    base-url: http://vimax-agent-java-app:8001
     api-key: 753951abc
 
 # SM4国密加密配置（前端密码传输加密密钥，16字节）
