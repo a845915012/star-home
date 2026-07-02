@@ -241,7 +241,7 @@ public class TaskApiInvokeServiceImpl implements ITaskApiInvokeService {
         try {
             log.info("callVimaxAgentCreateJob begin");
             String rawResponse = callVimaxAgentCreateJob(request.getImageUrl(), request.getProduct(),
-                    request.getMaterial(), request.getPrompt(), token, model, request.getType());
+                    request.getMaterial(), request.getPrompt(), request.getSellingPoints(), token, model, request.getType());
             log.info("callVimaxAgentCreateJob end");
             JsonNode resultNode = mapper.readTree(rawResponse);
             String taskId = getText(resultNode, "job_id");
@@ -319,16 +319,34 @@ public class TaskApiInvokeServiceImpl implements ITaskApiInvokeService {
             response.setCallCost(consumePrice);
             response.setApiResult(rawResponse);
             return response;
-        } catch (IOException e) {
-            if (generationTaskId != null) {
-                markImageToVideoGenerationFailed(generationTaskId, userId, request, request.getImageUrl(), e.getMessage());
+        } catch (Exception e) {
+            if (generationTaskId == null) {
+                // 首次请求失败时，先创建头任务，确保 prompt 等关键信息被记录
+                FurnitureVideoGenerationTaskDO failGenerationTask = new FurnitureVideoGenerationTaskDO();
+                failGenerationTask.setUserId(userId);
+                failGenerationTask.setProduct(request.getProduct());
+                failGenerationTask.setMaterial(request.getMaterial());
+                failGenerationTask.setImageUrl(request.getImageUrl());
+                failGenerationTask.setConsumeCode(request.getConsumeCode());
+                failGenerationTask.setConsumePrice(consumePrice);
+                failGenerationTask.setExpectedTaskCount(1);
+                failGenerationTask.setCurrentTaskCount(0);
+                failGenerationTask.setStatus("failed");
+                failGenerationTask.setErrorMessage(e.getMessage());
+                failGenerationTask.setCreateTime(LocalDateTime.now());
+                furnitureVideoGenerationTaskMapper.insert(failGenerationTask);
+                generationTaskId = failGenerationTask.getId();
+            }
+            markImageToVideoGenerationFailed(generationTaskId, userId, request, request.getImageUrl(), e.getMessage());
+            if (e instanceof IOException) {
+                throw (IOException) e;
             }
             throw e;
         }
     }
 
     private String callVimaxAgentCreateJob(String publicImageUrl, String subject, String material, String extraPrompt,
-                                            String token, String model, String type) throws IOException {
+                                            String sellingPoints, String token, String model, String type) throws IOException {
         ObjectNode payload = mapper.createObjectNode();
         payload.put("image_url", publicImageUrl);
         if (subject != null && !subject.isBlank()) {
@@ -339,6 +357,9 @@ public class TaskApiInvokeServiceImpl implements ITaskApiInvokeService {
         }
         if (extraPrompt != null && !extraPrompt.isBlank()) {
             payload.put("extra_prompt", extraPrompt);
+        }
+        if (sellingPoints != null && !sellingPoints.isBlank()) {
+            payload.put("selling_points", sellingPoints);
         }
         payload.put("duration", 16);
         if (token != null && !token.isBlank()) {

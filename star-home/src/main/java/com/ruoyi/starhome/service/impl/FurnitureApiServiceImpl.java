@@ -74,8 +74,9 @@ public class FurnitureApiServiceImpl implements IFurnitureApiService {
         // 后端业务字段统一在服务内赋值
         serviceRequest.setConsumeCode(request.getConsumeCode());
         serviceRequest.setPrompt(request.getPrompt());
-        serviceRequest.setNumber("image2video_yunwu_api_pix");
-        serviceRequest.setType("pix");
+        serviceRequest.setSellingPoints(request.getSellingPoints());
+        serviceRequest.setNumber("image2video_yunwu_api_kling");
+        serviceRequest.setType("kling");
 
         return taskApiInvokeService.imageGenerateVideo(serviceRequest);
     }

@@ -14,4 +14,8 @@ public class ImageGenerateVideoClientRequest {
      */
     private String imageUrl;
     private String prompt;
+    /**
+     * 卖点信息
+     */
+    private String sellingPoints;
 }

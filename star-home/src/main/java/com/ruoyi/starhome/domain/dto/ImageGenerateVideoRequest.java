@@ -26,6 +26,10 @@ public class ImageGenerateVideoRequest {
      */
     private String number;
     /**
+     * 卖点信息
+     */
+    private String sellingPoints;
+    /**
      * 视频生成类型，前端传入
      */
     private String type;
