@@ -17,6 +17,12 @@
             <if test="startTime != null">
                 AND r.create_time &gt;= #{startTime}
             </if>
+            <if test="module != null and module != ''">
+                AND r.module = #{module}
+            </if>
+            <if test="status != null and status != ''">
+                AND r.status = #{status}
+            </if>
         </where>
         ORDER BY r.id DESC
     </select>

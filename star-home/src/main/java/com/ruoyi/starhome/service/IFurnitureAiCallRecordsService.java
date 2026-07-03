@@ -9,6 +9,6 @@ public interface IFurnitureAiCallRecordsService {
 
     FurnitureAiCallRecordsPageResp selectFurnitureAiCallRecordsList(Long userId, String timeRange, Integer pageNum, Integer pageSize);
 
-    FurnitureAiCallRecordsPageResp selectFurnitureAiCallRecordsHistoryPage(Long userId, Integer pageNum, Integer pageSize);
+    FurnitureAiCallRecordsPageResp selectFurnitureAiCallRecordsHistoryPage(Long userId, Integer pageNum, Integer pageSize, String module, String status);
 
 }

@@ -43,7 +43,7 @@ public class FurnitureAiCallRecordsServiceImpl implements IFurnitureAiCallRecord
     public FurnitureAiCallRecordsPageResp selectFurnitureAiCallRecordsList(Long userId, String timeRange, Integer pageNum, Integer pageSize) {
         Date startTime = getStartTime(timeRange);
         PageHelper.startPage(pageNum, pageSize);
-        List<FurnitureAiCallRecordsVO> records = furnitureAiCallRecordsMapper.selectPageWithUser(userId, startTime);
+        List<FurnitureAiCallRecordsVO> records = furnitureAiCallRecordsMapper.selectPageWithUser(userId, startTime, null, null);
         PageInfo<FurnitureAiCallRecordsVO> pageInfo = new PageInfo<>(records);
 
         FurnitureAiCallRecordsPageResp resp = new FurnitureAiCallRecordsPageResp();
@@ -56,9 +56,9 @@ public class FurnitureAiCallRecordsServiceImpl implements IFurnitureAiCallRecord
     }
 
     @Override
-    public FurnitureAiCallRecordsPageResp selectFurnitureAiCallRecordsHistoryPage(Long userId, Integer pageNum, Integer pageSize) {
+    public FurnitureAiCallRecordsPageResp selectFurnitureAiCallRecordsHistoryPage(Long userId, Integer pageNum, Integer pageSize, String module, String status) {
         PageHelper.startPage(pageNum, pageSize);
-        List<FurnitureAiCallRecordsVO> records = furnitureAiCallRecordsMapper.selectPageWithUser(userId, null);
+        List<FurnitureAiCallRecordsVO> records = furnitureAiCallRecordsMapper.selectPageWithUser(userId, null, module, status);
         PageInfo<FurnitureAiCallRecordsVO> pageInfo = new PageInfo<>(records);
 
         FurnitureAiCallRecordsPageResp resp = new FurnitureAiCallRecordsPageResp();

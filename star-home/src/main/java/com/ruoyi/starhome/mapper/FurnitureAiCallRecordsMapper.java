@@ -15,5 +15,7 @@ public interface FurnitureAiCallRecordsMapper extends BaseMapper<FurnitureAiCall
      * 分页查询AI调用记录（含用户名和手机号）
      */
     List<FurnitureAiCallRecordsVO> selectPageWithUser(@Param("userId") Long userId,
-                                                       @Param("startTime") java.util.Date startTime);
+                                                       @Param("startTime") java.util.Date startTime,
+                                                       @Param("module") String module,
+                                                       @Param("status") String status);
 }

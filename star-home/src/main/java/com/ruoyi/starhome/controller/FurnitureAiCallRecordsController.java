@@ -42,14 +42,18 @@ public class FurnitureAiCallRecordsController extends BaseController {
         return R.ok(furnitureAiCallRecordsService.selectFurnitureAiCallRecordsList(getUserId(), timeRange, pageNum, pageSize));
     }
 
-    @Operation(summary = "分页查询历史记录", description = "查询当前登录用户的AI调用历史记录")
+    @Operation(summary = "分页查询历史记录", description = "查询当前登录用户的AI调用历史记录，支持按模块和状态过滤")
     @Parameters({
             @Parameter(name = "pageNum", description = "页码", example = "1"),
-            @Parameter(name = "pageSize", description = "每页条数", example = "10")
+            @Parameter(name = "pageSize", description = "每页条数", example = "10"),
+            @Parameter(name = "module", description = "模块名称，为null则不过滤", example = "TEXT_TO_VIDEO"),
+            @Parameter(name = "status", description = "状态，为null则不过滤", example = "SUCCESS")
     })
     @GetMapping("/history/page")
     public R<?> historyPage(@RequestParam("pageNum") Integer pageNum,
-                            @RequestParam("pageSize") Integer pageSize) {
-        return R.ok(furnitureAiCallRecordsService.selectFurnitureAiCallRecordsHistoryPage(getUserId(), pageNum, pageSize));
+                            @RequestParam("pageSize") Integer pageSize,
+                            @RequestParam(value = "module", required = false) String module,
+                            @RequestParam(value = "status", required = false) String status) {
+        return R.ok(furnitureAiCallRecordsService.selectFurnitureAiCallRecordsHistoryPage(getUserId(), pageNum, pageSize, module, status));
     }
 }
