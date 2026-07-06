@@ -41,6 +41,7 @@ public class FurnitureApiServiceImpl implements IFurnitureApiService {
         taskRequest.setUserPrompt(request.getUserPrompt());
         taskRequest.setModule("视觉设计");
         taskRequest.setConsumeCode(request.getConsumeCode());
+        taskRequest.setTemperature(request.getTemperature());
         TaskApiInvokeResponse response = taskApiInvokeService.invokeGeminiImageApi(taskRequest);
         response.setApiResult(response.getApiResult());
         return response;

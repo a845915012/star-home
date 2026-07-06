@@ -33,4 +33,9 @@ public class TaskApiInvokeRequest implements Serializable {
     private String consumeCode;
 
     private BigDecimal consumePrice;
+
+    /**
+     * 温度参数，控制生成随机性
+     */
+    private BigDecimal temperature;
 }

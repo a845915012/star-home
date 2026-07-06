@@ -508,7 +508,8 @@ public class TaskApiInvokeServiceImpl implements ITaskApiInvokeService {
                     filePaths,
                     apiPool.getApiUrl(),
                     apiPool.getApiKey(),
-                    usageHolder
+                    usageHolder,
+                    request.getTemperature()
             );
             result.setApiResult(uploadGeminiImageResultToOss(apiResult));
             result.setUsageRaw(usageHolder[0]);
@@ -667,16 +668,19 @@ public class TaskApiInvokeServiceImpl implements ITaskApiInvokeService {
         private String base64Data;
     }
 
-    private String generateByChatCompletions(String model,String question, List<String> filePaths, String url, String apiKey, String[] usageHolder) throws IOException {
-        ObjectNode payload = buildChatCompletionsImagePayload(model,question, filePaths);
+    private String generateByChatCompletions(String model,String question, List<String> filePaths, String url, String apiKey, String[] usageHolder, BigDecimal temperature) throws IOException {
+        ObjectNode payload = buildChatCompletionsImagePayload(model,question, filePaths, temperature);
         Request request = buildChatCompletionsImageRequest(url, apiKey, payload);
         return executeChatCompletionsImageBlocking(request, usageHolder);
     }
 
-    private ObjectNode buildChatCompletionsImagePayload(String model,String question, List<String> filePaths) {
+    private ObjectNode buildChatCompletionsImagePayload(String model,String question, List<String> filePaths, BigDecimal temperature) {
         ObjectNode root = mapper.createObjectNode();
         root.put("stream", false);
         root.put("model", model);
+        if (temperature != null) {
+            root.put("temperature", temperature);
+        }
 
         ArrayNode messages = mapper.createArrayNode();
         ObjectNode userMessage = mapper.createObjectNode();

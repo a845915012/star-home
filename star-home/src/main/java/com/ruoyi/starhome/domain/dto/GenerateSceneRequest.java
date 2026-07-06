@@ -5,6 +5,7 @@ import lombok.Data;
 
 import java.io.Serial;
 import java.io.Serializable;
+import java.math.BigDecimal;
 import java.util.List;
 
 @Data
@@ -23,4 +24,6 @@ public class GenerateSceneRequest implements Serializable {
     private String userPrompt;
     @Schema(description = "视角提示词")
     private String viewPrompt;
+    @Schema(description = "温度参数，控制生成随机性，取值范围0-2")
+    private BigDecimal temperature;
 }
