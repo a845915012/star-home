@@ -20,4 +20,11 @@ public interface IFurnitureRechargeOrderService {
     int deleteFurnitureRechargeOrderById(Long id);
 
     FurnitureRechargeOrderDO createOrder(CreateOrderRequest request);
+
+    /**
+     * 判断指定用户是否有充值记录（支付成功过的订单）
+     *
+     * @return true-充值过，false-未充值
+     */
+    boolean hasRecharged();
 }

@@ -9,6 +9,7 @@ import com.ruoyi.common.utils.sign.Sm4Utils;
 import com.ruoyi.framework.web.service.SysRegisterService;
 import com.ruoyi.starhome.domain.dto.ForgetPasswordBody;
 import com.ruoyi.starhome.domain.dto.UpdateUserRequest;
+import com.ruoyi.starhome.service.IFurnitureRechargeOrderService;
 import com.ruoyi.starhome.service.IUserService;
 import com.ruoyi.starhome.sms.service.ISmsCodeService;
 import com.ruoyi.system.service.ISysUserService;
@@ -37,6 +38,9 @@ public class UserController {
 
     @Autowired
     private ISysUserService sysUserService;
+
+    @Autowired
+    private IFurnitureRechargeOrderService furnitureRechargeOrderService;
 
     @Anonymous
     @GetMapping("/sendSmsCode")
@@ -111,5 +115,11 @@ public class UserController {
         } else {
             return R.fail("该手机号未注册");
         }
+    }
+
+    @GetMapping("/hasRecharged")
+    @Operation(summary = "查询当前用户是否充值过", description = "根据当前登录用户判断是否已有支付成功的充值记录")
+    public R<Boolean> hasRecharged() {
+        return R.ok(furnitureRechargeOrderService.hasRecharged());
     }
 }

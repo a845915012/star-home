@@ -2,6 +2,7 @@ package com.ruoyi.starhome.service.impl;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.ruoyi.common.exception.ServiceException;
+import com.ruoyi.framework.security.util.SecurityFrameworkUtils;
 import com.ruoyi.starhome.domain.FurnitureMemberPackageDO;
 import com.ruoyi.starhome.domain.FurnitureRechargeOrderDO;
 import com.ruoyi.starhome.domain.FurnitureUserPackageRightsDO;
@@ -154,6 +155,19 @@ public class FurnitureRechargeOrderServiceImpl implements IFurnitureRechargeOrde
             return null;
         }
         return new Date(baseTime.getTime() + validDays * 24L * 60 * 60 * 1000);
+    }
+
+    @Override
+    public boolean hasRecharged() {
+        Long userId = SecurityFrameworkUtils.getLoginUserId();
+        if (userId == null) {
+            return false;
+        }
+        return furnitureRechargeOrderMapper.selectCount(
+                new LambdaQueryWrapper<FurnitureRechargeOrderDO>()
+                        .eq(FurnitureRechargeOrderDO::getUserId, userId)
+                        .eq(FurnitureRechargeOrderDO::getPayStatus, 1)
+        ) > 0;
     }
 
     private String generateOrderNo() {

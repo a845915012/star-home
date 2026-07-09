@@ -17,6 +17,7 @@ import com.ruoyi.starhome.domain.dto.WechatPayRechargeRequest;
 import com.ruoyi.starhome.enums.PayStatusConstants;
 import com.ruoyi.starhome.enums.PayWayConstants;
 import com.ruoyi.starhome.mapper.FurnitureRechargeOrderMapper;
+import com.ruoyi.starhome.service.IFurnitureRechargeOrderService;
 import com.ruoyi.starhome.service.IFurnitureRechargePackageService;
 import com.ruoyi.starhome.service.IFurnitureUserBalanceAccountService;
 import com.ruoyi.starhome.service.IWechatNotifyService;
@@ -79,6 +80,9 @@ public class WechatPayServiceImpl implements IWechatPayService {
 
     @Autowired
     private RedisCache redisCache;
+
+    @Autowired
+    private IFurnitureRechargeOrderService furnitureRechargeOrderService;
 
     private final OkHttpClient okHttpClient = new OkHttpClient();
     private final ObjectMapper objectMapper = new ObjectMapper();
@@ -375,7 +379,12 @@ public class WechatPayServiceImpl implements IWechatPayService {
         if (request.getAmount().compareTo(new BigDecimal("50000")) > 0) {
             throw new ServiceException("单笔充值金额不能超过50000元");
         }
-        return new RechargeInfo(null, request.getAmount(), request.getAmount());
+        // 自定义支付：用户首次充值（无支付成功记录）星币翻倍
+        BigDecimal provideAmount = request.getAmount();
+        if (!furnitureRechargeOrderService.hasRecharged()) {
+            provideAmount = provideAmount.multiply(new BigDecimal("2"));
+        }
+        return new RechargeInfo(null, request.getAmount(), provideAmount);
     }
 
     private FurnitureRechargeOrderDO createOrder(Long userId, RechargeInfo rechargeInfo, WechatPayRechargeRequest request) {
