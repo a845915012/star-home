@@ -7,6 +7,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
+import com.ruoyi.common.core.domain.entity.SysUser;
 import com.ruoyi.common.exception.ServiceException;
 import com.ruoyi.common.utils.StringUtils;
 import com.ruoyi.common.utils.file.OssUploadService;
@@ -19,6 +20,7 @@ import com.ruoyi.starhome.service.IFurnitureConsumeConfigService;
 import com.ruoyi.starhome.service.IFurnitureUserBalanceAccountService;
 import com.ruoyi.starhome.service.ITaskApiInvokeService;
 import com.ruoyi.framework.manager.AsyncManager;
+import com.ruoyi.system.mapper.SysUserMapper;
 import lombok.extern.slf4j.Slf4j;
 import okhttp3.*;
 import okio.BufferedSource;
@@ -95,6 +97,8 @@ public class TaskApiInvokeServiceImpl implements ITaskApiInvokeService {
     private String serverUrl;
     @Value("${starhome.port}")
     private String serverPort;
+    @Autowired
+    private SysUserMapper sysUserMapper;
 
     private ObjectMapper buildObjectMapper() {
         JsonFactory factory = JsonFactory.builder()
@@ -211,13 +215,13 @@ public class TaskApiInvokeServiceImpl implements ITaskApiInvokeService {
 
         Long userId = SecurityFrameworkUtils.getLoginUserId();
         if (userId == null) {
-            userId = request.getUserId();
-        }
-
-        Long generationTaskId = request.getGenerationTaskId();
-        if (userId == null) {
             throw new ServiceException("用户未登录");
         }
+        SysUser sysUser = sysUserMapper.selectUserById(userId);
+        if (sysUser.getIsVip() == 0) {
+            throw new ServiceException("该用户不是会员，无法使用动态影像模块");
+        }
+        Long generationTaskId = request.getGenerationTaskId();
 
         // 先校验余额，扣费延后到任务成功后统一处理
         BigDecimal consumePrice = resolveConsumePrice(request.getConsumeCode());
