@@ -10,7 +10,7 @@ import lombok.Data;
 import java.io.Serial;
 import java.io.Serializable;
 import java.math.BigDecimal;
-import java.util.Date;
+import java.time.LocalDateTime;
 
 @Data
 @TableName("furniture_recharge_package")
@@ -38,9 +38,24 @@ public class FurnitureRechargePackageDO implements Serializable {
 
     private String remark;
 
+    /** 活动开始时间 */
+    private LocalDateTime activityStartTime;
+
+    /** 活动结束时间 */
+    private LocalDateTime activityEndTime;
+
+    /** 总限量，-1为无限 */
+    private Integer totalQuota;
+
+    /** 每日限量，-1为无限 */
+    private Integer dailyQuota;
+
+    /** 是否过期，0：过期，1：未过期（由定时任务根据活动时间维护） */
+    private Integer isExpire;
+
     @TableField(fill = FieldFill.INSERT)
-    private Date createTime;
+    private LocalDateTime createTime;
 
     @TableField(fill = FieldFill.INSERT_UPDATE)
-    private Date updateTime;
+    private LocalDateTime updateTime;
 }

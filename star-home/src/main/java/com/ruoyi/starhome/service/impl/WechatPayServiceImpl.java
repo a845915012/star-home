@@ -357,10 +357,7 @@ public class WechatPayServiceImpl implements IWechatPayService {
         }
 
         if (hasPackageId) {
-            FurnitureRechargePackageDO rechargePackage = furnitureRechargePackageService.selectEnabledById(request.getPackageId());
-            if (rechargePackage == null) {
-                throw new ServiceException("充值套餐不存在或未启用");
-            }
+            FurnitureRechargePackageDO rechargePackage = furnitureRechargePackageService.assertQuotaAvailable(request.getPackageId());
             if (rechargePackage.getCostAmount() == null || rechargePackage.getCostAmount().compareTo(BigDecimal.ZERO) <= 0) {
                 throw new ServiceException("充值套餐支付金额异常");
             }

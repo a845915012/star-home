@@ -31,3 +31,11 @@ ALTER TABLE `furniture_recharge_package` ADD COLUMN `vip_level` int DEFAULT NULL
 
 -- 用户表增加会员等级字段
 ALTER TABLE `sys_user` ADD COLUMN `vip_level` int DEFAULT NULL COMMENT '会员等级';
+
+-- 充值套餐表字段扩展（活动时间、限量、是否过期）
+ALTER TABLE `furniture_recharge_package` ADD COLUMN `activity_start_time` datetime DEFAULT NULL COMMENT '活动开始时间';
+ALTER TABLE `furniture_recharge_package` ADD COLUMN `activity_end_time` datetime DEFAULT NULL COMMENT '活动结束时间';
+ALTER TABLE `furniture_recharge_package` ADD COLUMN `total_quota` int DEFAULT -1 COMMENT '总限量，-1为无限';
+ALTER TABLE `furniture_recharge_package` ADD COLUMN `daily_quota` int DEFAULT -1 COMMENT '每日限量，-1为无限';
+ALTER TABLE `furniture_recharge_package` ADD COLUMN `is_expire` int DEFAULT NULL COMMENT '是否过期，0：过期，1：未过期';
+

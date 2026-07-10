@@ -40,6 +40,9 @@ public class FurnitureRechargePackageController extends BaseController {
             @Parameter(name = "provideAmount", description = "提供额度", example = "120.00"),
             @Parameter(name = "isVip", description = "是否VIP套餐（0否 1是）", example = "1"),
             @Parameter(name = "status", description = "状态（1启用 0停用）", example = "1"),
+            @Parameter(name = "totalQuota", description = "总限量（-1无限）", example = "-1"),
+            @Parameter(name = "dailyQuota", description = "每日限量（-1无限）", example = "-1"),
+            @Parameter(name = "isExpire", description = "是否过期（1未过期 0过期）", example = "1"),
             @Parameter(name = "remark", description = "备注", example = "限时活动"),
             @Parameter(name = "pageNum", description = "页码", example = "1"),
             @Parameter(name = "pageSize", description = "每页条数", example = "10")
