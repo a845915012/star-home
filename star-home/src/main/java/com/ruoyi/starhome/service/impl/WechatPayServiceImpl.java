@@ -59,6 +59,7 @@ public class WechatPayServiceImpl implements IWechatPayService {
     private static final String CACHE_ACCESS_TOKEN_KEY = "wechatpay:access_token:";
     private static final String CACHE_JSAPI_TICKET_KEY = "wechatpay:jsapi_ticket:";
     private static final int VIP_ENABLED = 1;
+    private static final BigDecimal FIRST_RECHARGE_AMOUNT = new BigDecimal("10");
 
     @Autowired
     private WechatPayConfig wechatPayConfig;
@@ -376,9 +377,11 @@ public class WechatPayServiceImpl implements IWechatPayService {
         if (request.getAmount().compareTo(new BigDecimal("50000")) > 0) {
             throw new ServiceException("单笔充值金额不能超过50000元");
         }
-        // 自定义支付：用户首次充值（无支付成功记录）星币翻倍
+        // 自定义支付：仅用户首次充值且金额恰好为10元时才翻倍，其他金额（含非首充）均不翻倍
         BigDecimal provideAmount = request.getAmount();
-        if (!furnitureRechargeOrderService.hasRecharged()) {
+        boolean isFirstRechargeTenYuan = !furnitureRechargeOrderService.hasRecharged()
+                && request.getAmount().compareTo(FIRST_RECHARGE_AMOUNT) == 0;
+        if (isFirstRechargeTenYuan) {
             provideAmount = provideAmount.multiply(new BigDecimal("2"));
         }
         return new RechargeInfo(null, request.getAmount(), provideAmount);
