@@ -50,6 +50,16 @@ public class RedisCache
     }
 
     /**
+     * 原子写入（仅当 key 不存在时写入），用于幂等防重。
+     *
+     * @return true=写入成功（首次提交）；false=key 已存在（重复提交）
+     */
+    public <T> Boolean setIfAbsent(final String key, final T value, final long timeout, final TimeUnit timeUnit)
+    {
+        return redisTemplate.opsForValue().setIfAbsent(key, value, timeout, timeUnit);
+    }
+
+    /**
      * 设置有效时间
      *
      * @param key Redis键

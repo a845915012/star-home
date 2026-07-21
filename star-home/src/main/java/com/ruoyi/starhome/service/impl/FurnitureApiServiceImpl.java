@@ -1,50 +1,148 @@
 package com.ruoyi.starhome.service.impl;
 
+import com.ruoyi.common.core.redis.RedisCache;
+import com.ruoyi.common.exception.ServiceException;
 import com.ruoyi.framework.security.util.SecurityFrameworkUtils;
+import lombok.extern.slf4j.Slf4j;
+import com.ruoyi.starhome.domain.FurnitureConsumeConfigDO;
 import com.ruoyi.starhome.domain.dto.CopyGenerateRequest;
 import com.ruoyi.starhome.domain.dto.GenerateSceneRequest;
+import com.ruoyi.starhome.domain.dto.ImageGenerateSceneRequest;
 import com.ruoyi.starhome.domain.dto.ImageGenerateVideoClientRequest;
 import com.ruoyi.starhome.domain.dto.ImageGenerateVideoRequest;
+import com.ruoyi.starhome.domain.dto.SceneResultItem;
 import com.ruoyi.starhome.domain.dto.TaskApiInvokeRequest;
 import com.ruoyi.starhome.domain.dto.TaskApiInvokeResponse;
 import com.ruoyi.starhome.service.IFurnitureApiService;
+import com.ruoyi.starhome.service.IFurnitureConsumeConfigService;
+import com.ruoyi.starhome.service.IFurnitureUserBalanceAccountService;
 import com.ruoyi.starhome.service.ITaskApiInvokeService;
 import org.apache.commons.lang3.StringUtils;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.stereotype.Service;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
 import java.io.IOException;
+import java.math.BigDecimal;
+import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.List;
+import java.util.Map;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.Executor;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
+import java.util.stream.Collectors;
 
+@Slf4j
 @Service
 public class FurnitureApiServiceImpl implements IFurnitureApiService {
 
     @Autowired
     private ITaskApiInvokeService taskApiInvokeService;
 
+    @Autowired
+    private IFurnitureUserBalanceAccountService balanceAccountService;
+
+    @Autowired
+    private IFurnitureConsumeConfigService consumeConfigService;
+
+    @Autowired
+    private RedisCache redisCache;
+
+    @Autowired
+    @Qualifier("imageGenExecutor")
+    private Executor imageGenExecutor;
+
     @Override
-    public TaskApiInvokeResponse imageGenerateScene(GenerateSceneRequest request) throws IOException {
-        TaskApiInvokeRequest taskRequest = new TaskApiInvokeRequest();
-        taskRequest.setUserId(SecurityFrameworkUtils.getLoginUserId());
-        taskRequest.setApiNumber(request.getApiNumber());
-        taskRequest.setUseSse(false);
-        taskRequest.setFilePaths(request.getFilePaths());
-        StringBuilder question = new StringBuilder();
-        question.append(request.getStylePrompt());
-        if (StringUtils.isNotBlank(request.getUserPrompt())) {
-            question.append(request.getUserPrompt());
+    public List<SceneResultItem> imageGenerateScene(ImageGenerateSceneRequest request) {
+        Long userId = SecurityFrameworkUtils.getLoginUserId();
+        List<GenerateSceneRequest> items = request.getItems();
+        if (items == null || items.isEmpty()) {
+            throw new ServiceException("任务列表不能为空");
         }
-        if (StringUtils.isNotBlank(request.getViewPrompt())) {
-            question.append(request.getViewPrompt());
+
+        // 1) 幂等防重：同一 userId + requestId 在 10 分钟内只处理一次
+        if (StringUtils.isNotBlank(request.getRequestId())) {
+            String idemKey = "img_gen:" + userId + ":" + request.getRequestId();
+            Boolean first = redisCache.setIfAbsent(idemKey, "1", 10, TimeUnit.MINUTES);
+            if (Boolean.FALSE.equals(first)) {
+                throw new ServiceException("请勿重复提交");
+            }
         }
-        taskRequest.setQuestion(question.toString());
-        taskRequest.setUserPrompt(request.getUserPrompt());
-        taskRequest.setModule("视觉设计");
-        taskRequest.setConsumeCode(request.getConsumeCode());
-        taskRequest.setTemperature(request.getTemperature());
-        TaskApiInvokeResponse response = taskApiInvokeService.invokeGeminiImageApi(taskRequest);
-        response.setApiResult(response.getApiResult());
-        return response;
+
+        // 2) 前置软校验：余额 >= 各任务单价之和（仅做 UX 拦截，真正正确性由每任务原子扣费保证）
+        BigDecimal total = BigDecimal.ZERO;
+        for (GenerateSceneRequest item : items) {
+            total = total.add(resolvePrice(item));
+        }
+        if (getCurrentBalance(userId).compareTo(total) < 0) {
+            throw new ServiceException("余额不足");
+        }
+
+        // 3) 列表 fan-out 并发生成（阻塞等待全部完成，按入参序号排序返回）
+        List<CompletableFuture<SceneResultItem>> futures = new ArrayList<>(items.size());
+        for (int i = 0; i < items.size(); i++) {
+            final int idx = i;
+            final GenerateSceneRequest item = items.get(i);
+            futures.add(CompletableFuture.supplyAsync(
+                    () -> taskApiInvokeService.generateSceneSingle(item, userId, idx), imageGenExecutor));
+        }
+
+        List<SceneResultItem> results;
+        try {
+            CompletableFuture.allOf(futures.toArray(new CompletableFuture[0])).get(3, TimeUnit.MINUTES);
+            results = futures.stream().map(CompletableFuture::join)
+                    .sorted(Comparator.comparingInt(SceneResultItem::getIndex))
+                    .collect(Collectors.toList());
+        } catch (TimeoutException te) {
+            log.warn("图生图列表处理超时 userId={}", userId);
+            results = new ArrayList<>(items.size());
+            for (int i = 0; i < futures.size(); i++) {
+                CompletableFuture<SceneResultItem> f = futures.get(i);
+                if (f.isDone()) {
+                    try {
+                        results.add(f.join());
+                    } catch (Exception ex) {
+                        results.add(buildFailedItem(i, "处理异常"));
+                    }
+                } else {
+                    results.add(buildFailedItem(i, "处理超时未完成"));
+                }
+            }
+            results.sort(Comparator.comparingInt(SceneResultItem::getIndex));
+        } catch (Exception e) {
+            throw new ServiceException("图生图处理失败: " + e.getMessage());
+        }
+        return results;
+    }
+
+    private SceneResultItem buildFailedItem(int index, String reason) {
+        SceneResultItem item = new SceneResultItem();
+        item.setIndex(index);
+        item.setSuccess(false);
+        item.setFailReason(reason);
+        return item;
+    }
+
+    private BigDecimal getCurrentBalance(Long userId) {
+        try {
+            Map<String, Object> m = balanceAccountService.getUserBalance(userId);
+            Object b = m.get("balance");
+            return b == null ? BigDecimal.ZERO : (BigDecimal) b;
+        } catch (Exception e) {
+            return BigDecimal.ZERO;
+        }
+    }
+
+    private BigDecimal resolvePrice(GenerateSceneRequest item) {
+        try {
+            FurnitureConsumeConfigDO cfg = consumeConfigService.selectEnabledByCode(item.getConsumeCode());
+            return cfg != null && cfg.getPrice() != null ? cfg.getPrice() : BigDecimal.ZERO;
+        } catch (Exception e) {
+            return BigDecimal.ZERO;
+        }
     }
 
     @Override

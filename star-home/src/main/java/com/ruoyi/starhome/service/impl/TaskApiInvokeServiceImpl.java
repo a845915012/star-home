@@ -188,6 +188,91 @@ public class TaskApiInvokeServiceImpl implements ITaskApiInvokeService {
         return response;
     }
 
+    /**
+     * 单任务图生图（供列表接口并发调用）：
+     * 1) 原子条件扣费（扣前，避免并发超扣）
+     * 2) 调用上游生成（阻塞约 2 分钟）
+     * 3) 成功则完结；失败则退款（保证"异常不扣费"且不送免费图）
+     * 注意：本方法不包裹事务以包含生成调用；扣费/退款各自用 REQUIRES_NEW，避免长阻塞占用数据库连接。
+     *
+     * @param request 单个生成请求
+     * @param userId  用户ID（由调用方显式传入，异步线程无 SecurityContext）
+     * @param index   入参序号，用于结果排序/匹配
+     */
+    public SceneResultItem generateSceneSingle(GenerateSceneRequest request, Long userId, int index) {
+        SceneResultItem item = new SceneResultItem();
+        item.setIndex(index);
+        item.setApiNumber(request.getApiNumber());
+        try {
+            if (request.getFilePaths() == null || request.getFilePaths().isEmpty()) {
+                return item.fail("文件地址不能为空");
+            }
+            BigDecimal consumePrice = resolveConsumePrice(request.getConsumeCode());
+            // 1) 原子扣费（扣前）
+            boolean deducted = furnitureUserBalanceAccountService.deductIfEnough(userId, consumePrice);
+            if (!deducted) {
+                item.setCallCost(BigDecimal.ZERO);
+                return item.fail("余额不足");
+            }
+            // 写消费流水
+            furnitureUserBalanceAccountService.recordConsume(userId, consumePrice);
+            item.setCallCost(consumePrice);
+
+            // 组装 prompt
+            StringBuilder question = new StringBuilder();
+            question.append(request.getStylePrompt());
+            if (StringUtils.isNotBlank(request.getUserPrompt())) {
+                question.append(request.getUserPrompt());
+            }
+            if (StringUtils.isNotBlank(request.getViewPrompt())) {
+                question.append(request.getViewPrompt());
+            }
+
+            TaskApiInvokeRequest taskRequest = new TaskApiInvokeRequest();
+            taskRequest.setUserId(userId);
+            taskRequest.setApiNumber(request.getApiNumber());
+            taskRequest.setUseSse(false);
+            taskRequest.setFilePaths(request.getFilePaths());
+            taskRequest.setQuestion(question.toString());
+            taskRequest.setUserPrompt(request.getUserPrompt());
+            taskRequest.setModule("视觉设计");
+            taskRequest.setConsumeCode(request.getConsumeCode());
+            taskRequest.setTemperature(request.getTemperature());
+
+            FurnitureNumberApiPoolDO apiPool = getApiPoolByNumber(request.getApiNumber());
+            String aiMode = resolveMode(apiPool, DEFAULT_IMAGE_MODE);
+            AiApiCallResult callResult = callGeminiImageApiByApiPool(taskRequest, apiPool, aiMode);
+
+            recordUsageAsyncFromGeminiImage(
+                    userId,
+                    "视觉设计",
+                    aiMode,
+                    consumePrice,
+                    question.toString(),
+                    request.getUserPrompt(),
+                    String.join(",", request.getFilePaths()),
+                    callResult.getApiResult(),
+                    callResult.getUsageRaw()
+            );
+            apiCallMonitorCacheService.recordCall(userId);
+
+            item.setApiResult(callResult.getApiResult());
+            item.setSuccess(true);
+        } catch (Exception e) {
+            // 2) 失败退款
+            BigDecimal cost = item.getCallCost() == null ? BigDecimal.ZERO : item.getCallCost();
+            try {
+                furnitureUserBalanceAccountService.refund(userId, cost);
+            } catch (Exception refundEx) {
+                log.error("图生图退款失败 userId={} index={} cost={}", userId, index, cost, refundEx);
+            }
+            item.setSuccess(false);
+            item.setFailReason("生成失败: " + e.getMessage());
+            log.error("图生图任务失败 userId={} index={}", userId, index, e);
+        }
+        return item;
+    }
+
     @Override
     public SseEmitter createStream(Long userId) {
         if (userId == null) {

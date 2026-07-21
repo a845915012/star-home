@@ -17,6 +17,7 @@ import com.ruoyi.starhome.utils.DateUtil;
 import com.ruoyi.system.mapper.SysUserMapper;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.event.TransactionPhase;
 import org.springframework.transaction.event.TransactionalEventListener;
@@ -33,6 +34,7 @@ import java.util.Map;
 public class FurnitureUserBalanceAccountServiceImpl implements IFurnitureUserBalanceAccountService {
     private static final int TYPE_RECHARGE = 1;
     private static final int TYPE_CONSUME = 2;
+    private static final int TYPE_REFUND = 3;
     private static final BigDecimal NEW_USER_INIT_BALANCE = new BigDecimal("5");
     private static final DateTimeFormatter DATE_TIME_FMT = DateTimeFormatter.ofPattern(DateUtil.FORMAT_YEAR_MONTH_DAY_HOUR_MINUTE_SECOND);
 
@@ -105,6 +107,37 @@ public class FurnitureUserBalanceAccountServiceImpl implements IFurnitureUserBal
         account.setUseBalance(safeAmount(account.getUseBalance()).add(amount));
         account.setUpdateTime(new Date());
         furnitureUserBalanceAccountMapper.updateById(account);
+        insertRecord(userId, amount, TYPE_CONSUME, "消费");
+    }
+
+    @Override
+    @Transactional(propagation = Propagation.REQUIRES_NEW, rollbackFor = Exception.class)
+    public boolean deductIfEnough(Long userId, BigDecimal amount) {
+        if (amount == null || amount.compareTo(BigDecimal.ZERO) <= 0) {
+            return false;
+        }
+        validateOperate(userId, amount);
+        ensureAccount(userId);
+        return furnitureUserBalanceAccountMapper.deductIfEnough(userId, amount) > 0;
+    }
+
+    @Override
+    @Transactional(propagation = Propagation.REQUIRES_NEW, rollbackFor = Exception.class)
+    public void refund(Long userId, BigDecimal amount) {
+        if (amount == null || amount.compareTo(BigDecimal.ZERO) <= 0) {
+            return;
+        }
+        validateOperate(userId, amount);
+        ensureAccount(userId);
+        furnitureUserBalanceAccountMapper.refund(userId, amount);
+        insertRecord(userId, amount, TYPE_REFUND, "生成失败退款");
+    }
+
+    @Override
+    public void recordConsume(Long userId, BigDecimal amount) {
+        if (amount == null || amount.compareTo(BigDecimal.ZERO) <= 0) {
+            return;
+        }
         insertRecord(userId, amount, TYPE_CONSUME, "消费");
     }
 

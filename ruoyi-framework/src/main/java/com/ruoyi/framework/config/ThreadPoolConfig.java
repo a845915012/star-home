@@ -43,6 +43,25 @@ public class ThreadPoolConfig
     }
 
     /**
+     * 图片生成专用线程池：每个任务会阻塞约 2 分钟等待上游，属于长阻塞 I/O，
+     * 使用独立池避免拖垮全局异步执行器。CallerRunsPolicy 保证饱和时内联执行而非拒绝请求。
+     */
+    @Bean(name = "imageGenExecutor")
+    public ThreadPoolTaskExecutor imageGenExecutor()
+    {
+        ThreadPoolTaskExecutor executor = new ThreadPoolTaskExecutor();
+        executor.setCorePoolSize(50);
+        executor.setMaxPoolSize(100);
+        executor.setQueueCapacity(200);
+        executor.setKeepAliveSeconds(300);
+        executor.setThreadNamePrefix("image-gen-");
+        executor.setRejectedExecutionHandler(new ThreadPoolExecutor.CallerRunsPolicy());
+        executor.setWaitForTasksToCompleteOnShutdown(true);
+        executor.setAwaitTerminationSeconds(60);
+        return executor;
+    }
+
+    /**
      * 执行周期性或定时任务
      */
     @Bean(name = "scheduledExecutorService")

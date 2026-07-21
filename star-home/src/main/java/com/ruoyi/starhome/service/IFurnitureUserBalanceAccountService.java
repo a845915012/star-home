@@ -23,6 +23,22 @@ public interface IFurnitureUserBalanceAccountService {
 
     void consume(Long userId, BigDecimal amount);
 
+    /**
+     * 原子条件扣费：仅当余额 >= amount 时扣除，返回是否扣费成功。
+     * 用于并发场景，避免"先查后扣"导致的少扣/超扣。
+     */
+    boolean deductIfEnough(Long userId, BigDecimal amount);
+
+    /**
+     * 退款（生成失败时回退扣费）。
+     */
+    void refund(Long userId, BigDecimal amount);
+
+    /**
+     * 仅写入消费流水（余额已在 deductIfEnough 中扣除）。
+     */
+    void recordConsume(Long userId, BigDecimal amount);
+
     FurnitureUserBalanceRecordsPageResp getUserBalanceRecords(Long userId, Integer type, Integer pageNum, Integer pageSize);
     Map<String, Object> getUserBalance(Long userId);
 
