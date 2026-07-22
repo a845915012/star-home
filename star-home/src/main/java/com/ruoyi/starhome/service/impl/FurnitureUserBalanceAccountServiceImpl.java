@@ -35,7 +35,7 @@ public class FurnitureUserBalanceAccountServiceImpl implements IFurnitureUserBal
     private static final int TYPE_RECHARGE = 1;
     private static final int TYPE_CONSUME = 2;
     private static final int TYPE_REFUND = 3;
-    private static final BigDecimal NEW_USER_INIT_BALANCE = new BigDecimal("5");
+    private static final BigDecimal NEW_USER_INIT_BALANCE = new BigDecimal("10");
     private static final DateTimeFormatter DATE_TIME_FMT = DateTimeFormatter.ofPattern(DateUtil.FORMAT_YEAR_MONTH_DAY_HOUR_MINUTE_SECOND);
 
     @Autowired
