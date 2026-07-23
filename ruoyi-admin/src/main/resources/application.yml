@@ -156,6 +156,9 @@ starhome:
   vimax-agent:
     base-url: http://vimax-agent-java-app:8001
     api-key: 753951abc
+  scene-generate:
+    # 图生图调用中转站失败重试次数（不含首次调用，0表示不重试）
+    retry-count: 2
   package:
     # 充值套餐过期状态检查间隔（毫秒），默认 30 分钟
     expire-check-interval-ms: 1800000

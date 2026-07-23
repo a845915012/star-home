@@ -69,6 +69,12 @@ public class TaskApiInvokeServiceImpl implements ITaskApiInvokeService {
     @Value("${starhome.vimax-agent.api-key:}")
     private String vimaxAgentApiKey;
 
+    /**
+     * 图生图调用中转站失败重试次数（不含首次调用，0表示不重试）
+     */
+    @Value("${starhome.scene-generate.retry-count:0}")
+    private int sceneGenerateRetryCount;
+
     @Autowired
     private FurnitureNumberApiPoolMapper furnitureNumberApiPoolMapper;
 
@@ -241,7 +247,7 @@ public class TaskApiInvokeServiceImpl implements ITaskApiInvokeService {
 
             FurnitureNumberApiPoolDO apiPool = getApiPoolByNumber(request.getApiNumber());
             String aiMode = resolveMode(apiPool, DEFAULT_IMAGE_MODE);
-            AiApiCallResult callResult = callGeminiImageApiByApiPool(taskRequest, apiPool, aiMode);
+            AiApiCallResult callResult = callGeminiImageApiWithRetry(taskRequest, apiPool, aiMode);
 
             recordUsageAsyncFromGeminiImage(
                     userId,
@@ -267,8 +273,7 @@ public class TaskApiInvokeServiceImpl implements ITaskApiInvokeService {
                 log.error("图生图退款失败 userId={} index={} cost={}", userId, index, cost, refundEx);
             }
             item.setSuccess(false);
-            item.setFailReason("生成失败: " + e.getMessage());
-            log.error("图生图任务失败 userId={} index={}", userId, index, e);
+            item.setFailReason("当前服务器正忙，请重试");
         }
         return item;
     }
@@ -578,6 +583,42 @@ public class TaskApiInvokeServiceImpl implements ITaskApiInvokeService {
         }
         String mode = apiPool.getMode();
         return mode == null || mode.isBlank() ? defaultMode : mode;
+    }
+
+    /**
+     * 带重试的图生图调用：中转站可能因并发过高而失败，失败后按配置的次数重试。
+     * 总尝试次数 = 1（首次） + sceneGenerateRetryCount（重试）
+     */
+    private AiApiCallResult callGeminiImageApiWithRetry(TaskApiInvokeRequest request, FurnitureNumberApiPoolDO apiPool, String aiMode) throws IOException {
+        int maxAttempts = Math.max(sceneGenerateRetryCount, 0) + 1;
+        Exception lastEx = null;
+        for (int attempt = 1; attempt <= maxAttempts; attempt++) {
+            try {
+                return callGeminiImageApiByApiPool(request, apiPool, aiMode);
+            } catch (Exception e) {
+                lastEx = e;
+                log.warn("图生图调用中转站失败，第{}/{}次尝试, userId={}, 原因: {}",
+                        attempt, maxAttempts, request.getUserId(), e.getMessage());
+            }
+        }
+        // 重试次数用尽仍失败：记录失败的AI调用记录（费用已退款，记0）
+        recordUsageAsyncDetailed(
+                request.getUserId(),
+                request.getModule(),
+                aiMode,
+                BigDecimal.ZERO,
+                BigDecimal.ZERO,
+                BigDecimal.ZERO,
+                BigDecimal.ZERO,
+                null,
+                request.getQuestion(),
+                request.getUserPrompt(),
+                request.getFilePaths() == null ? null : String.join(",", request.getFilePaths()),
+                null,
+                "调用失败: " + lastEx.getMessage(),
+                "FAIL"
+        );
+        throw new RuntimeException(lastEx.getMessage());
     }
 
     private AiApiCallResult callGeminiImageApiByApiPool(TaskApiInvokeRequest request, FurnitureNumberApiPoolDO apiPool, String aiMode) throws IOException {
