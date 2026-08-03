@@ -39,8 +39,8 @@ public class OssUploadService
 
     @Value("${aliyun.oss.use-signed-url:true}")
     private boolean useSignedUrl;
-
-    @Value("${aliyun.oss.signed-url-expire-seconds:604800}")
+    // 604800 7天；2592000  30天
+    @Value("${aliyun.oss.signed-url-expire-seconds:2592000}")
     private long signedUrlExpireSeconds;
 
     public OssUploadResult uploadMultipartFile(String directory, MultipartFile file) throws IOException
