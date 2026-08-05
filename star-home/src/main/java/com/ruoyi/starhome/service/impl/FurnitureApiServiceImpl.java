@@ -57,6 +57,7 @@ public class FurnitureApiServiceImpl implements IFurnitureApiService {
 
     @Override
     public List<SceneResultItem> imageGenerateScene(ImageGenerateSceneRequest request) {
+        log.info("requestId:{}",request.getRequestId());
         Long userId = SecurityFrameworkUtils.getLoginUserId();
         List<GenerateSceneRequest> items = request.getItems();
         if (items == null || items.isEmpty()) {
@@ -92,7 +93,7 @@ public class FurnitureApiServiceImpl implements IFurnitureApiService {
 
         List<SceneResultItem> results;
         try {
-            CompletableFuture.allOf(futures.toArray(new CompletableFuture[0])).get(3, TimeUnit.MINUTES);
+            CompletableFuture.allOf(futures.toArray(new CompletableFuture[0])).get(15, TimeUnit.MINUTES);
             results = futures.stream().map(CompletableFuture::join)
                     .sorted(Comparator.comparingInt(SceneResultItem::getIndex))
                     .collect(Collectors.toList());
