@@ -100,7 +100,7 @@ public class CommonController
             List<String> originalFilenames = new ArrayList<String>();
             for (MultipartFile file : files)
             {
-                OssUploadService.OssUploadResult ossUploadResult = ossUploadService.uploadMultipartFile("upload", file);
+                OssUploadService.OssUploadResult ossUploadResult = ossUploadService.uploadMultipartFile("image/upload", file);
                 urls.add(ossUploadResult.getUrl());
                 fileNames.add(ossUploadResult.getObjectKey());
                 newFileNames.add(FileUtils.getName(ossUploadResult.getObjectKey()));
